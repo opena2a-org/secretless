@@ -13,6 +13,7 @@ import * as path from 'path';
 import { init } from './init';
 import { scan } from './scan';
 import { status } from './status';
+import { verify } from './verify';
 import { toolDisplayName } from './detect';
 
 const VERSION = '0.2.0';
@@ -32,6 +33,9 @@ function main(): void {
       break;
     case 'status':
       runStatus(projectDir);
+      break;
+    case 'verify':
+      runVerify(projectDir);
       break;
     case '--version':
     case '-v':
@@ -135,6 +139,55 @@ function runStatus(projectDir: string): void {
   console.log();
 }
 
+function runVerify(projectDir: string): void {
+  console.log('\n  Secretless Verify\n');
+
+  const result = verify(projectDir);
+
+  // Show env var availability
+  const setVars = Object.entries(result.envVars).filter(([, v]) => v);
+  const unsetVars = Object.entries(result.envVars).filter(([, v]) => !v);
+
+  if (setVars.length > 0) {
+    console.log('  Env vars available (usable by tools):');
+    for (const [name] of setVars) {
+      console.log(`    + ${name}`);
+    }
+  }
+
+  if (unsetVars.length > 0) {
+    console.log('  Env vars not set:');
+    for (const [name] of unsetVars) {
+      console.log(`    - ${name}`);
+    }
+  }
+  console.log();
+
+  // Show context exposure
+  if (result.exposedInContext.length > 0) {
+    console.log('  EXPOSED in AI context (secrets the AI can see):');
+    for (const exp of result.exposedInContext) {
+      console.log(`    ! ${exp.patternName} in ${exp.file}:${exp.line}`);
+    }
+    console.log();
+  } else {
+    console.log('  AI context files: clean (no credentials found)\n');
+  }
+
+  // Verdict
+  if (result.passed) {
+    console.log('  PASS: Secrets are accessible via env vars but hidden from AI context.\n');
+  } else if (result.exposedInContext.length > 0) {
+    console.log('  FAIL: Credentials found in AI context files.');
+    console.log('  Run `npx secretless init` to remediate.\n');
+    process.exit(1);
+  } else {
+    console.log('  WARN: No API keys found in env vars.');
+    console.log('  Set keys in ~/.zshenv or ~/.bashrc, then restart your terminal.\n');
+    process.exit(1);
+  }
+}
+
 function printHelp(): void {
   console.log(`
   Secretless v${VERSION}
@@ -144,6 +197,7 @@ function printHelp(): void {
     npx secretless init      Set up protections for your AI tools
     npx secretless scan      Scan for hardcoded secrets
     npx secretless status    Show protection status
+    npx secretless verify    Verify keys are usable but hidden from AI
 
   Options:
     -v, --version    Show version
