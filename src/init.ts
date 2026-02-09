@@ -33,7 +33,7 @@ interface InitResult {
 
 /**
  * Initialize Secretless protections for the project.
- * This is the main entry point called by `npx @opena2a/secretless init`.
+ * This is the main entry point called by `npx secretless-ai init`.
  */
 export function init(projectDir: string): InitResult {
   const result: InitResult = {
@@ -286,7 +286,7 @@ ${keyTable}
 2. Add the variable name to \`.env.example\`
 3. Warn the user to rotate the exposed credential
 
-Verify setup: \`npx secretless verify\`
+Verify setup: \`npx secretless-ai verify\`
 `;
 }
 
@@ -314,13 +314,13 @@ function generateClaudeHookScript(): string {
     '.docker/config.json', '.git-credentials',
     '.npmrc', '.pypirc',
     '.tfstate', '.tfvars',
-    'secrets/', '.opena2a/secretless/',
+    'secrets/', '.opena2a/secretless-ai/',
   ];
 
   return `#!/bin/bash
 # Secretless Guard — PreToolUse hook for Claude Code
 # Blocks file access to secrets before they enter AI context.
-# Managed by @opena2a/secretless. Do not edit manually.
+# Managed by secretless-ai. Do not edit manually.
 
 set -euo pipefail
 

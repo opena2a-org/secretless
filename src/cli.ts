@@ -4,9 +4,9 @@
  * Secretless CLI
  *
  * Usage:
- *   npx secretless init     — Set up protections for detected AI tools
- *   npx secretless scan     — Scan for hardcoded secrets
- *   npx @opena2a/secretless status   — Show current protection status
+ *   npx secretless-ai init     — Set up protections for detected AI tools
+ *   npx secretless-ai scan     — Scan for hardcoded secrets
+ *   npx secretless-ai status   — Show current protection status
  */
 
 import * as path from 'path';
@@ -16,7 +16,7 @@ import { status } from './status';
 import { verify } from './verify';
 import { toolDisplayName } from './detect';
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 
 function main(): void {
   const args = process.argv.slice(2);
@@ -97,7 +97,7 @@ function runInit(projectDir: string): void {
   // Report secrets found
   if (result.secretsFound > 0) {
     console.log(`  Warning: found ${result.secretsFound} hardcoded credential(s)`);
-    console.log('  Run `npx secretless scan` to see details\n');
+    console.log('  Run `npx secretless-ai scan` to see details\n');
   }
 
   console.log('  Done. Secrets are now blocked from AI context.\n');
@@ -122,7 +122,7 @@ function runScan(projectDir: string): void {
     console.log();
   }
 
-  console.log(`  Run \`npx secretless init\` to add protections.\n`);
+  console.log(`  Run \`npx secretless-ai init\` to add protections.\n`);
   process.exit(findings.length > 0 ? 1 : 0);
 }
 
@@ -179,7 +179,7 @@ function runVerify(projectDir: string): void {
     console.log('  PASS: Secrets are accessible via env vars but hidden from AI context.\n');
   } else if (result.exposedInContext.length > 0) {
     console.log('  FAIL: Credentials found in AI context files.');
-    console.log('  Run `npx secretless init` to remediate.\n');
+    console.log('  Run `npx secretless-ai init` to remediate.\n');
     process.exit(1);
   } else {
     console.log('  WARN: No API keys found in env vars.');
@@ -194,10 +194,10 @@ function printHelp(): void {
   Keep secrets out of AI context.
 
   Usage:
-    npx secretless init      Set up protections for your AI tools
-    npx secretless scan      Scan for hardcoded secrets
-    npx secretless status    Show protection status
-    npx secretless verify    Verify keys are usable but hidden from AI
+    npx secretless-ai init      Set up protections for your AI tools
+    npx secretless-ai scan      Scan for hardcoded secrets
+    npx secretless-ai status    Show protection status
+    npx secretless-ai verify    Verify keys are usable but hidden from AI
 
   Options:
     -v, --version    Show version
@@ -205,7 +205,7 @@ function printHelp(): void {
 
   Supports: Claude Code, Cursor, GitHub Copilot, Windsurf, Cline, Aider
 
-  https://opena2a.org/secretless
+  https://opena2a.org/secretless-ai
 `);
 }
 

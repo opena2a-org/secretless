@@ -1,12 +1,12 @@
-# Secretless
+# Secretless AI
 
-[![npm version](https://img.shields.io/npm/v/secretless.svg)](https://www.npmjs.com/package/secretless)
+[![npm version](https://img.shields.io/npm/v/secretless-ai.svg)](https://www.npmjs.com/package/secretless-ai)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 One command to keep secrets out of AI. Works with Claude Code, Cursor, Copilot, Windsurf, Cline, and Aider.
 
 ```bash
-npx secretless init
+npx secretless-ai init
 ```
 
 ## The Problem
@@ -32,7 +32,7 @@ Claude Code gets the strongest protection because it supports [hooks](https://do
 
 ```bash
 # In any project directory
-npx secretless init
+npx secretless-ai init
 ```
 
 Output:
@@ -79,7 +79,7 @@ Delete any hardcoded keys from `CLAUDE.md`, `.cursorrules`, `.env`, etc.
 **Step 3: Run secretless init**
 
 ```bash
-npx secretless init
+npx secretless-ai init
 ```
 
 Secretless detects which env vars are set and adds a reference table to your AI tool's instruction file. The AI knows *which* keys are available and *how* to authenticate — without seeing the actual values.
@@ -87,7 +87,7 @@ Secretless detects which env vars are set and adds a reference table to your AI 
 **Step 4: Verify**
 
 ```bash
-npx secretless verify
+npx secretless-ai verify
 ```
 
 ```
@@ -106,11 +106,11 @@ npx secretless verify
 
 ## Commands
 
-### `npx secretless init`
+### `npx secretless-ai init`
 
 Detects AI tools in your project and installs protections. If API keys are set as env vars, includes a reference table with service names and auth header formats so the AI can use them without seeing values. Safe to run multiple times.
 
-### `npx secretless scan`
+### `npx secretless-ai scan`
 
 Scans config files for hardcoded credentials — both project-level and global (`~/.claude/CLAUDE.md`). Detects 12 credential patterns including Anthropic, OpenAI, AWS, GitHub, Slack, Google, Stripe, SendGrid, Supabase, and Azure keys.
 
@@ -126,7 +126,7 @@ Scans config files for hardcoded credentials — both project-level and global (
          OPENAI_API_KEY=[OpenAI Project Key REDACTED]
 ```
 
-### `npx secretless verify`
+### `npx secretless-ai verify`
 
 Confirms keys are usable but hidden from AI. Checks that env vars are set AND that the actual key values don't appear in any AI context file.
 
@@ -134,7 +134,7 @@ Confirms keys are usable but hidden from AI. Checks that env vars are set AND th
   PASS: Secrets are accessible via env vars but hidden from AI context.
 ```
 
-### `npx secretless status`
+### `npx secretless-ai status`
 
 Shows current protection status.
 

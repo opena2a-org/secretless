@@ -47,7 +47,7 @@ export const SECRET_FILE_PATTERNS: string[] = [
   '*.tfvars',
   'secrets/',
   'credentials/',
-  '.opena2a/secretless/',
+  '.opena2a/secretless-ai/',
 ];
 
 /** Config files that may contain hardcoded secrets */

@@ -5,7 +5,7 @@ import * as os from 'os';
 import { verify } from './verify';
 
 function tmpDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'secretless-verify-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'secretless-ai-verify-'));
 }
 
 function cleanup(dir: string): void {

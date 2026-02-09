@@ -8,7 +8,7 @@ import { status } from './status';
 import { detectAITools } from './detect';
 
 function tmpDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'secretless-test-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'secretless-ai-test-'));
 }
 
 function cleanup(dir: string): void {

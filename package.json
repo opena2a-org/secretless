@@ -1,13 +1,13 @@
 {
-  "name": "secretless",
-  "version": "0.2.0",
+  "name": "secretless-ai",
+  "version": "0.3.0",
   "description": "One command to keep secrets out of AI. Works with Claude Code, Cursor, Copilot, Windsurf, and any AI coding tool.",
   "license": "Apache-2.0",
   "type": "commonjs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "secretless": "dist/cli.js"
+    "secretless-ai": "dist/cli.js"
   },
   "files": [
     "dist"
