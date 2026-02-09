@@ -161,6 +161,45 @@ describe('verify', () => {
   });
 });
 
+describe('verify - use key then prove it is not in context', () => {
+  it('uses GAMMA_API_KEY to call Gamma API, then confirms key is not in any AI context file', async () => {
+    const key = process.env.GAMMA_API_KEY;
+    if (!key) return; // skip if not set in this environment
+
+    // Step 1: Actually USE the key — make a real API call to Gamma
+    const res = await fetch('https://public-api.gamma.app/v1.0/generations', {
+      method: 'POST',
+      headers: { 'X-API-KEY': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic: 'test' }),
+    });
+    // Any response (even 400/422) proves the key was sent and the service is reachable.
+    // A network error would throw, failing the test.
+    expect(res.status).toBeDefined();
+
+    // Step 2: Read EVERY file that gets loaded into Claude's context window
+    const contextFiles = [
+      path.join(os.homedir(), '.claude', 'CLAUDE.md'),
+      path.join(os.homedir(), '.claude', 'settings.json'),
+      path.join(process.cwd(), 'CLAUDE.md'),
+      path.join(process.cwd(), '.cursorrules'),
+      path.join(process.cwd(), '.env'),
+      path.join(process.cwd(), '.env.local'),
+      path.join(process.cwd(), 'config.json'),
+      path.join(process.cwd(), '.claude', 'settings.json'),
+      path.join(process.cwd(), '.cursor', 'mcp.json'),
+      path.join(process.cwd(), '.vscode', 'mcp.json'),
+      path.join(process.cwd(), 'mcp.json'),
+    ];
+
+    for (const filePath of contextFiles) {
+      if (!fs.existsSync(filePath)) continue;
+      const content = fs.readFileSync(filePath, 'utf-8');
+      // The actual key value must NOT appear anywhere in this file
+      expect(content).not.toContain(key);
+    }
+  });
+});
+
 describe('verify - real system state', () => {
   it('confirms ~/.claude/CLAUDE.md has no hardcoded credentials', () => {
     const claudeMd = path.join(os.homedir(), '.claude', 'CLAUDE.md');
