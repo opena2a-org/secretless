@@ -8,6 +8,21 @@ import * as path from 'path';
 import { detectAITools, toolDisplayName, type AITool } from './detect';
 import { SECRET_FILE_PATTERNS, CREDENTIAL_PATTERNS, CONFIG_FILES } from './patterns';
 
+/** Known API services with their auth header formats */
+const SERVICE_HINTS: Record<string, { service: string; authHeader: string }> = {
+  ANTHROPIC_API_KEY: { service: 'Anthropic Messages API', authHeader: 'x-api-key: $ANTHROPIC_API_KEY' },
+  OPENAI_API_KEY: { service: 'OpenAI API', authHeader: 'Authorization: Bearer $OPENAI_API_KEY' },
+  GAMMA_API_KEY: { service: 'Gamma API', authHeader: 'X-API-KEY: $GAMMA_API_KEY' },
+  AWS_ACCESS_KEY_ID: { service: 'AWS', authHeader: '(use AWS SDK or aws configure)' },
+  GITHUB_TOKEN: { service: 'GitHub API', authHeader: 'Authorization: Bearer $GITHUB_TOKEN' },
+  SLACK_TOKEN: { service: 'Slack API', authHeader: 'Authorization: Bearer $SLACK_TOKEN' },
+  GOOGLE_API_KEY: { service: 'Google API', authHeader: 'key=$GOOGLE_API_KEY (query param)' },
+  STRIPE_SECRET_KEY: { service: 'Stripe API', authHeader: 'Authorization: Bearer $STRIPE_SECRET_KEY' },
+  SENDGRID_API_KEY: { service: 'SendGrid API', authHeader: 'Authorization: Bearer $SENDGRID_API_KEY' },
+  SUPABASE_SERVICE_ROLE_KEY: { service: 'Supabase', authHeader: 'apikey: $SUPABASE_SERVICE_ROLE_KEY' },
+  AZURE_API_KEY: { service: 'Azure', authHeader: 'api-key: $AZURE_API_KEY' },
+};
+
 interface InitResult {
   toolsDetected: AITool[];
   toolsConfigured: AITool[];
@@ -229,12 +244,31 @@ function configureAider(projectDir: string, result: InitResult): void {
 
 const SECRETLESS_MARKER = '<!-- secretless:managed -->';
 
-const SECRETLESS_INSTRUCTIONS = `
+function buildSecretlessInstructions(): string {
+  // Detect which env vars are actually set
+  const availableKeys: string[] = [];
+  for (const envVar of Object.keys(SERVICE_HINTS)) {
+    if (process.env[envVar] && process.env[envVar]!.length > 0) {
+      availableKeys.push(envVar);
+    }
+  }
+
+  let keyTable = '';
+  if (availableKeys.length > 0) {
+    keyTable = `\n**Available API keys** (set as env vars — use \`$VAR_NAME\` in commands, never ask for values):\n\n`;
+    keyTable += `| Env Var | Service | Auth Header |\n|---------|---------|-------------|\n`;
+    for (const envVar of availableKeys) {
+      const hint = SERVICE_HINTS[envVar];
+      keyTable += `| \`$${envVar}\` | ${hint.service} | \`${hint.authHeader}\` |\n`;
+    }
+  }
+
+  return `
 ${SECRETLESS_MARKER}
 ## Secretless Mode
 
 This project uses Secretless to protect credentials from AI context.
-
+${keyTable}
 **Blocked file patterns** (never read, write, or reference):
 - \`.env\`, \`.env.*\` — environment variable files
 - \`*.key\`, \`*.pem\`, \`*.p12\`, \`*.pfx\` — private key files
@@ -243,15 +277,18 @@ This project uses Secretless to protect credentials from AI context.
 - \`secrets/\`, \`credentials/\` — secret directories
 
 **If you need a credential:**
-1. Ask the user to set it as an environment variable
-2. Reference it via \`process.env.VAR_NAME\` or \`os.environ["VAR_NAME"]\`
-3. Never hardcode credentials in source files
+1. Reference it via \`$VAR_NAME\` in shell commands or \`process.env.VAR_NAME\` in code
+2. Never hardcode credentials in source files
+3. Never print or echo key values — only reference them as variables
 
 **If you find a hardcoded credential:**
 1. Replace it with an environment variable reference
 2. Add the variable name to \`.env.example\`
 3. Warn the user to rotate the exposed credential
+
+Verify setup: \`npx secretless verify\`
 `;
+}
 
 function addSecretlessInstructions(filePath: string, tool: string, result: InitResult): void {
   const existing = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : '';
@@ -260,7 +297,7 @@ function addSecretlessInstructions(filePath: string, tool: string, result: InitR
     return; // Already configured
   }
 
-  fs.writeFileSync(filePath, existing + SECRETLESS_INSTRUCTIONS);
+  fs.writeFileSync(filePath, existing + buildSecretlessInstructions());
   if (existing) {
     result.filesModified.push(path.relative(process.cwd(), filePath));
   } else {

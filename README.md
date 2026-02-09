@@ -38,7 +38,7 @@ npx secretless init
 Output:
 
 ```
-  Secretless v0.1.0
+  Secretless v0.2.0
   Keeping secrets out of AI
 
   Detected:
@@ -60,26 +60,78 @@ Output:
   Done. Secrets are now blocked from AI context.
 ```
 
+## Moving Keys from AI Context to Env Vars
+
+The safest setup: keys live in environment variables, AI tools reference them by name.
+
+**Step 1: Move keys to your shell profile**
+
+```bash
+# Add to ~/.zshenv (or ~/.bashrc)
+export ANTHROPIC_API_KEY="sk-ant-..."
+export OPENAI_API_KEY="sk-proj-..."
+```
+
+**Step 2: Remove keys from AI config files**
+
+Delete any hardcoded keys from `CLAUDE.md`, `.cursorrules`, `.env`, etc.
+
+**Step 3: Run secretless init**
+
+```bash
+npx secretless init
+```
+
+Secretless detects which env vars are set and adds a reference table to your AI tool's instruction file. The AI knows *which* keys are available and *how* to authenticate — without seeing the actual values.
+
+**Step 4: Verify**
+
+```bash
+npx secretless verify
+```
+
+```
+  Env vars available (usable by tools):
+    + ANTHROPIC_API_KEY
+    + OPENAI_API_KEY
+
+  AI context files: clean (no credentials found)
+
+  PASS: Secrets are accessible via env vars but hidden from AI context.
+```
+
+**Before:** Claude sees `ANTHROPIC_API_KEY=sk-ant-api03-abc123...` in CLAUDE.md — the key is in the context window, extractable via prompt injection.
+
+**After:** Claude sees a table saying `$ANTHROPIC_API_KEY` exists and the auth header is `x-api-key: $ANTHROPIC_API_KEY`. It uses `$ANTHROPIC_API_KEY` in shell commands. The shell resolves it. Claude never sees the actual value.
+
 ## Commands
 
 ### `npx secretless init`
 
-Detects AI tools in your project and installs protections. Safe to run multiple times — it's idempotent.
+Detects AI tools in your project and installs protections. If API keys are set as env vars, includes a reference table with service names and auth header formats so the AI can use them without seeing values. Safe to run multiple times.
 
 ### `npx secretless scan`
 
-Scans config files for hardcoded credentials. Detects 12 credential patterns including Anthropic, OpenAI, AWS, GitHub, Slack, Google, Stripe, SendGrid, Supabase, and Azure keys.
+Scans config files for hardcoded credentials — both project-level and global (`~/.claude/CLAUDE.md`). Detects 12 credential patterns including Anthropic, OpenAI, AWS, GitHub, Slack, Google, Stripe, SendGrid, Supabase, and Azure keys.
 
 ```
   Found 2 credential(s):
 
   [CRIT] Anthropic API Key
-         config.json:15
-         ...sk-ant-api03-****...
+         ~/.claude/CLAUDE.md:286
+         ANTHROPIC_API_KEY=[Anthropic API Key REDACTED]
 
-  [HIGH] AWS Access Key
-         deploy.yml:8
-         ...AKIA****...
+  [CRIT] OpenAI Project Key
+         ~/.claude/CLAUDE.md:284
+         OPENAI_API_KEY=[OpenAI Project Key REDACTED]
+```
+
+### `npx secretless verify`
+
+Confirms keys are usable but hidden from AI. Checks that env vars are set AND that the actual key values don't appear in any AI context file.
+
+```
+  PASS: Secrets are accessible via env vars but hidden from AI context.
 ```
 
 ### `npx secretless status`
