@@ -20,7 +20,8 @@ const VERSION = '0.1.0';
 function main(): void {
   const args = process.argv.slice(2);
   const command = args[0];
-  const projectDir = process.cwd();
+  const dirArg = args[1];
+  const projectDir = dirArg ? path.resolve(dirArg) : process.cwd();
 
   switch (command) {
     case 'init':
