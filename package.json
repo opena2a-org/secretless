@@ -34,9 +34,9 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/opena2a-org/secretless"
+    "url": "https://github.com/opena2a-org/secretless-ai"
   },
-  "homepage": "https://github.com/opena2a-org/secretless",
+  "homepage": "https://github.com/opena2a-org/secretless-ai",
   "engines": {
     "node": ">=18.0.0"
   },
