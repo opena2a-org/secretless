@@ -5,6 +5,8 @@
 
 One command to keep secrets out of AI. Works with Claude Code, Cursor, Copilot, Windsurf, Cline, and Aider.
 
+Part of the [OpenA2A](https://opena2a.org) ecosystem — open-source security for AI agents.
+
 ```bash
 npx secretless-ai init
 ```
@@ -180,6 +182,18 @@ Additionally, Secretless adds `permissions.deny` rules to `.claude/settings.json
 ## Zero Dependencies
 
 Secretless has zero runtime dependencies. The npm package is 18 KB.
+
+## OpenA2A Ecosystem
+
+| Project | What it does |
+|---------|-------------|
+| [**AIM**](https://github.com/opena2a-org/agent-identity-management) | Identity & access management for AI agents |
+| [**HackMyAgent**](https://github.com/opena2a-org/hackmyagent) | Security scanner — 147 checks, attack mode, auto-fix |
+| [**Secretless AI**](https://github.com/opena2a-org/secretless-ai) | Keep credentials out of AI context windows |
+| [**DVAA**](https://github.com/opena2a-org/damn-vulnerable-ai-agent) | Deliberately vulnerable AI agents for security training |
+| [**OASB**](https://oasb.ai) | Open Agent Security Benchmark |
+
+[Website](https://opena2a.org) · [Discord](https://discord.gg/uRZa3KXgEn) · [Email](mailto:info@opena2a.org)
 
 ## License
 
