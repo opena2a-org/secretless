@@ -130,7 +130,7 @@ describe('scan', () => {
       apiKey: 'sk-ant-api03-abc123def456abc123def456abc123'
     }));
 
-    const findings = scan(dir);
+    const findings = scan(dir, { scanGlobal: false });
     expect(findings.length).toBe(1);
     expect(findings[0].patternName).toBe('Anthropic API Key');
     expect(findings[0].preview).toContain('REDACTED');
@@ -139,7 +139,7 @@ describe('scan', () => {
   it('finds AWS key in .env', () => {
     fs.writeFileSync(path.join(dir, '.env'), 'AWS_KEY=AKIAIOSFODNN7EXAMPLE');
 
-    const findings = scan(dir);
+    const findings = scan(dir, { scanGlobal: false });
     expect(findings.length).toBe(1);
     expect(findings[0].patternName).toBe('AWS Access Key');
   });
@@ -149,19 +149,19 @@ describe('scan', () => {
       apiKey: '${ANTHROPIC_API_KEY}'
     }));
 
-    const findings = scan(dir);
+    const findings = scan(dir, { scanGlobal: false });
     expect(findings.length).toBe(0);
   });
 
   it('handles missing files gracefully', () => {
-    const findings = scan(dir);
+    const findings = scan(dir, { scanGlobal: false });
     expect(findings.length).toBe(0);
   });
 
   it('redacts secrets in preview', () => {
     fs.writeFileSync(path.join(dir, '.env'), 'TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789');
 
-    const findings = scan(dir);
+    const findings = scan(dir, { scanGlobal: false });
     expect(findings.length).toBe(1);
     expect(findings[0].preview).not.toContain('ghp_');
     expect(findings[0].preview).toContain('REDACTED');

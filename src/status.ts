@@ -71,8 +71,8 @@ export function status(projectDir: string): StatusResult {
     }
   }
 
-  // Scan for secrets
-  const findings = scan(projectDir);
+  // Scan for secrets (project-level only for status report)
+  const findings = scan(projectDir, { scanGlobal: false });
   result.secretsFound = findings.length;
 
   // Protected if hook is installed OR instructions are present in at least one tool
