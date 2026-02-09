@@ -15,7 +15,7 @@ import { scan } from './scan';
 import { status } from './status';
 import { toolDisplayName } from './detect';
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 
 function main(): void {
   const args = process.argv.slice(2);
