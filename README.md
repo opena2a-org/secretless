@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/secretless-ai.svg)](https://www.npmjs.com/package/secretless-ai)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-One command to keep secrets out of AI. Works with Claude Code, Cursor, Copilot, Windsurf, Cline, and Aider.
+One command to keep secrets out of AI LLMs. Works with Claude Code, Cursor, Copilot, Windsurf, Cline, and Aider.
 
 Part of the [OpenA2A](https://opena2a.org) ecosystem — open-source security for AI agents.
 
