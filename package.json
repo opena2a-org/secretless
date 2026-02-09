@@ -36,7 +36,7 @@
     "type": "git",
     "url": "https://github.com/opena2a-org/secretless"
   },
-  "homepage": "https://opena2a.org/secretless",
+  "homepage": "https://github.com/opena2a-org/secretless",
   "engines": {
     "node": ">=18.0.0"
   },

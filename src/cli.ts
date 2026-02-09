@@ -4,8 +4,8 @@
  * Secretless CLI
  *
  * Usage:
- *   npx @opena2a/secretless init     — Set up protections for detected AI tools
- *   npx @opena2a/secretless scan     — Scan for hardcoded secrets
+ *   npx secretless init     — Set up protections for detected AI tools
+ *   npx secretless scan     — Scan for hardcoded secrets
  *   npx @opena2a/secretless status   — Show current protection status
  */
 
@@ -92,7 +92,7 @@ function runInit(projectDir: string): void {
   // Report secrets found
   if (result.secretsFound > 0) {
     console.log(`  Warning: found ${result.secretsFound} hardcoded credential(s)`);
-    console.log('  Run `npx @opena2a/secretless scan` to see details\n');
+    console.log('  Run `npx secretless scan` to see details\n');
   }
 
   console.log('  Done. Secrets are now blocked from AI context.\n');
@@ -117,7 +117,7 @@ function runScan(projectDir: string): void {
     console.log();
   }
 
-  console.log(`  Run \`npx @opena2a/secretless init\` to add protections.\n`);
+  console.log(`  Run \`npx secretless init\` to add protections.\n`);
   process.exit(findings.length > 0 ? 1 : 0);
 }
 
@@ -140,9 +140,9 @@ function printHelp(): void {
   Keep secrets out of AI context.
 
   Usage:
-    npx @opena2a/secretless init      Set up protections for your AI tools
-    npx @opena2a/secretless scan      Scan for hardcoded secrets
-    npx @opena2a/secretless status    Show protection status
+    npx secretless init      Set up protections for your AI tools
+    npx secretless scan      Scan for hardcoded secrets
+    npx secretless status    Show protection status
 
   Options:
     -v, --version    Show version
