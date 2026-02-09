@@ -1,0 +1,47 @@
+{
+  "name": "secretless",
+  "version": "0.1.0",
+  "description": "One command to keep secrets out of AI. Works with Claude Code, Cursor, Copilot, Windsurf, and any AI coding tool.",
+  "license": "Apache-2.0",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "secretless": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "ai",
+    "secrets",
+    "credentials",
+    "security",
+    "claude",
+    "cursor",
+    "copilot",
+    "windsurf",
+    "cline",
+    "aider",
+    "mcp"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/opena2a-org/secretless"
+  },
+  "homepage": "https://opena2a.org/secretless",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "vitest": "^1.2.0"
+  }
+}
