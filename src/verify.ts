@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { CREDENTIAL_PATTERNS, CONFIG_FILES } from './patterns';
+import { discoverTranscripts, scanTranscriptFile } from './transcript';
 
 export interface VerifyResult {
   /** Env var name → whether it's set */
@@ -17,6 +18,13 @@ export interface VerifyResult {
     patternName: string;
     file: string;
     line: number;
+  }>;
+  /** Credentials found in transcript files */
+  exposedInTranscripts: Array<{
+    file: string;
+    line: number;
+    jsonPath: string;
+    patternName: string;
   }>;
   /** Overall pass/fail */
   passed: boolean;
@@ -51,6 +59,7 @@ const PROJECT_CONTEXT_FILES = [
 export function verify(projectDir: string): VerifyResult {
   const envVars: Record<string, boolean> = {};
   const exposedInContext: VerifyResult['exposedInContext'] = [];
+  const exposedInTranscripts: VerifyResult['exposedInTranscripts'] = [];
 
   // Deduplicate env var names across patterns
   const uniqueEnvVars = [...new Set(CREDENTIAL_PATTERNS.map((p) => p.envPrefix))];
@@ -102,9 +111,28 @@ export function verify(projectDir: string): VerifyResult {
     }
   }
 
-  // Pass = at least one env var is set AND zero credentials exposed in context
-  const anyEnvSet = Object.values(envVars).some((v) => v);
-  const passed = anyEnvSet && exposedInContext.length === 0;
+  // Scan recent transcript files (5 most recent for speed)
+  try {
+    const transcripts = discoverTranscripts();
+    const recentTranscripts = transcripts.filter(f => f.endsWith('.jsonl')).slice(0, 5);
+    for (const file of recentTranscripts) {
+      const { findings } = scanTranscriptFile(file, true);
+      for (const f of findings) {
+        exposedInTranscripts.push({
+          file: f.file,
+          line: f.line,
+          jsonPath: f.jsonPath,
+          patternName: f.patternName,
+        });
+      }
+    }
+  } catch {
+    // Transcript scanning is best-effort
+  }
 
-  return { envVars, exposedInContext, passed };
+  // Pass = at least one env var is set AND zero credentials exposed
+  const anyEnvSet = Object.values(envVars).some((v) => v);
+  const passed = anyEnvSet && exposedInContext.length === 0 && exposedInTranscripts.length === 0;
+
+  return { envVars, exposedInContext, exposedInTranscripts, passed };
 }

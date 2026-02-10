@@ -6,6 +6,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { detectAITools, type AITool } from './detect';
 import { scan } from './scan';
+import { discoverTranscripts, scanTranscriptFile } from './transcript';
+import { isWatchRunning } from './watch';
 
 export interface StatusResult {
   isProtected: boolean;
@@ -13,6 +15,12 @@ export interface StatusResult {
   hookInstalled: boolean;
   denyRuleCount: number;
   secretsFound: number;
+  transcriptProtection: {
+    stopHookInstalled: boolean;
+    watcherRunning: boolean;
+    transcriptFiles: number;
+    transcriptSecretsFound: number;
+  };
 }
 
 /**
@@ -25,18 +33,30 @@ export function status(projectDir: string): StatusResult {
     hookInstalled: false,
     denyRuleCount: 0,
     secretsFound: 0,
+    transcriptProtection: {
+      stopHookInstalled: false,
+      watcherRunning: false,
+      transcriptFiles: 0,
+      transcriptSecretsFound: 0,
+    },
   };
 
   // Check Claude Code hook
   const hookPath = path.join(projectDir, '.claude', 'hooks', 'secretless-guard.sh');
   result.hookInstalled = fs.existsSync(hookPath);
 
-  // Check Claude Code deny rules
+  // Check Claude Code deny rules and Stop hook
   const settingsPath = path.join(projectDir, '.claude', 'settings.json');
   if (fs.existsSync(settingsPath)) {
     try {
       const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
       result.denyRuleCount = settings?.permissions?.deny?.length || 0;
+
+      // Check for Stop hook
+      const stopHooks = settings?.hooks?.Stop || [];
+      result.transcriptProtection.stopHookInstalled = stopHooks.some(
+        (h: any) => h.hooks?.some((hh: any) => hh.command?.includes('secretless-ai'))
+      );
     } catch {
       // Invalid JSON
     }
@@ -74,6 +94,23 @@ export function status(projectDir: string): StatusResult {
   // Scan for secrets (project-level only for status report)
   const findings = scan(projectDir, { scanGlobal: false });
   result.secretsFound = findings.length;
+
+  // Transcript protection metrics
+  try {
+    const transcripts = discoverTranscripts();
+    const jsonlFiles = transcripts.filter(f => f.endsWith('.jsonl'));
+    result.transcriptProtection.transcriptFiles = jsonlFiles.length;
+    result.transcriptProtection.watcherRunning = isWatchRunning();
+
+    // Quick scan of 3 most recent transcripts
+    const recentFiles = jsonlFiles.slice(0, 3);
+    for (const file of recentFiles) {
+      const { findings: transcriptFindings } = scanTranscriptFile(file, true);
+      result.transcriptProtection.transcriptSecretsFound += transcriptFindings.length;
+    }
+  } catch {
+    // Transcript scanning is best-effort
+  }
 
   // Protected if hook is installed OR instructions are present in at least one tool
   result.isProtected = result.hookInstalled || result.configuredTools.length > 0;
