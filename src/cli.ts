@@ -7,6 +7,9 @@
  *   npx secretless-ai init     — Set up protections for detected AI tools
  *   npx secretless-ai scan     — Scan for hardcoded secrets
  *   npx secretless-ai status   — Show current protection status
+ *   npx secretless-ai verify   — Verify keys are usable but hidden from AI
+ *   npx secretless-ai clean    — Scan and redact credentials in transcripts
+ *   npx secretless-ai watch    — Monitor transcripts in real-time
  */
 
 import * as path from 'path';
@@ -15,6 +18,8 @@ import { scan } from './scan';
 import { status } from './status';
 import { verify } from './verify';
 import { toolDisplayName } from './detect';
+import { cleanTranscripts } from './transcript';
+import { startWatch, stopWatch, isWatchRunning, installLaunchAgent, uninstallLaunchAgent } from './watch';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { version: VERSION } = require('../package.json');
@@ -22,21 +27,37 @@ const { version: VERSION } = require('../package.json');
 function main(): void {
   const args = process.argv.slice(2);
   const command = args[0];
-  const dirArg = args[1];
-  const projectDir = dirArg ? path.resolve(dirArg) : process.cwd();
 
   switch (command) {
-    case 'init':
+    case 'init': {
+      const dirArg = args[1];
+      const projectDir = dirArg ? path.resolve(dirArg) : process.cwd();
       runInit(projectDir);
       break;
-    case 'scan':
+    }
+    case 'scan': {
+      const dirArg = args[1];
+      const projectDir = dirArg ? path.resolve(dirArg) : process.cwd();
       runScan(projectDir);
       break;
-    case 'status':
+    }
+    case 'status': {
+      const dirArg = args[1];
+      const projectDir = dirArg ? path.resolve(dirArg) : process.cwd();
       runStatus(projectDir);
       break;
-    case 'verify':
+    }
+    case 'verify': {
+      const dirArg = args[1];
+      const projectDir = dirArg ? path.resolve(dirArg) : process.cwd();
       runVerify(projectDir);
+      break;
+    }
+    case 'clean':
+      runClean(args.slice(1));
+      break;
+    case 'watch':
+      runWatch(args.slice(1));
       break;
     case '--version':
     case '-v':
@@ -137,6 +158,21 @@ function runStatus(projectDir: string): void {
   console.log(`  Hook:       ${s.hookInstalled ? 'Installed' : 'Not installed'}`);
   console.log(`  Deny rules: ${s.denyRuleCount}`);
   console.log(`  Secrets:    ${s.secretsFound} found in config files`);
+
+  // Transcript protection status
+  if (s.transcriptProtection) {
+    console.log();
+    console.log('  Transcript Protection:');
+    console.log(`    Stop hook: ${s.transcriptProtection.stopHookInstalled ? 'Installed' : 'Not installed'}`);
+    console.log(`    Watcher:   ${s.transcriptProtection.watcherRunning ? 'Running' : 'Not running'}`);
+    console.log(`    Files:     ${s.transcriptProtection.transcriptFiles} transcript files`);
+    if (s.transcriptProtection.transcriptSecretsFound > 0) {
+      console.log(`    Secrets:   ${s.transcriptProtection.transcriptSecretsFound} found in recent transcripts`);
+    } else {
+      console.log(`    Secrets:   Clean`);
+    }
+  }
+
   console.log();
 }
 
@@ -175,17 +211,138 @@ function runVerify(projectDir: string): void {
     console.log('  AI context files: clean (no credentials found)\n');
   }
 
+  // Show transcript exposure
+  if (result.exposedInTranscripts.length > 0) {
+    console.log('  EXPOSED in transcripts (credentials in conversation history):');
+    for (const exp of result.exposedInTranscripts) {
+      console.log(`    ! ${exp.patternName} in ${exp.file}:${exp.line}`);
+    }
+    console.log('  Run `npx secretless-ai clean` to redact.\n');
+  }
+
   // Verdict
   if (result.passed) {
     console.log('  PASS: Secrets are accessible via env vars but hidden from AI context.\n');
-  } else if (result.exposedInContext.length > 0) {
-    console.log('  FAIL: Credentials found in AI context files.');
-    console.log('  Run `npx secretless-ai init` to remediate.\n');
+  } else if (result.exposedInContext.length > 0 || result.exposedInTranscripts.length > 0) {
+    console.log('  FAIL: Credentials found in AI context or transcript files.');
+    console.log('  Run `npx secretless-ai init` to protect context files.');
+    console.log('  Run `npx secretless-ai clean` to redact transcripts.\n');
     process.exit(1);
   } else {
     console.log('  WARN: No API keys found in env vars.');
     console.log('  Set keys in ~/.zshenv or ~/.bashrc, then restart your terminal.\n');
     process.exit(1);
+  }
+}
+
+function runClean(args: string[]): void {
+  const dryRun = args.includes('--dry-run');
+  const lastSession = args.includes('--last');
+  let targetPath: string | undefined;
+
+  const pathIdx = args.indexOf('--path');
+  if (pathIdx !== -1 && args[pathIdx + 1]) {
+    targetPath = path.resolve(args[pathIdx + 1]);
+  }
+
+  // Warn when scanning outside the default transcript directory
+  if (targetPath) {
+    const os = require('os');
+    const claudeDir = path.join(os.homedir(), '.claude');
+    if (!targetPath.startsWith(claudeDir)) {
+      console.log(`  Note: scanning outside ~/.claude/ — target: ${targetPath}\n`);
+    }
+  }
+
+  console.log('\n  Scanning Claude Code transcripts...\n');
+
+  const result = cleanTranscripts({ dryRun, targetPath, lastSession });
+
+  if (result.totalFindings === 0) {
+    console.log(`  Scanned: ${result.filesScanned} files`);
+    console.log('  No credentials found. Transcripts are clean.\n');
+    return;
+  }
+
+  // Group findings by file
+  const byFile = new Map<string, typeof result.findings>();
+  for (const f of result.findings) {
+    const existing = byFile.get(f.file) || [];
+    existing.push(f);
+    byFile.set(f.file, existing);
+  }
+
+  for (const [file, findings] of byFile) {
+    console.log(`  ${file}`);
+    for (const f of findings) {
+      console.log(`    Line ${f.line}:  ${f.jsonPath} → [REDACTED:${f.patternId}]`);
+    }
+    console.log();
+  }
+
+  console.log(`  Scanned:  ${result.filesScanned} files`);
+  console.log(`  Found:    ${result.totalFindings} credential(s) in ${result.filesWithSecrets} file(s)`);
+  if (dryRun) {
+    console.log('  Mode:     dry-run (no changes made)');
+    console.log('  Run without --dry-run to redact.\n');
+  } else {
+    console.log(`  Redacted: ${result.totalRedacted}\n`);
+  }
+}
+
+function runWatch(args: string[]): void {
+  const action = args[0] || 'start';
+
+  switch (action) {
+    case 'start':
+      if (isWatchRunning()) {
+        console.log('\n  Watcher is already running.\n');
+        return;
+      }
+      console.log('\n  Starting Secretless transcript watcher...');
+      console.log('  Press Ctrl+C to stop.\n');
+      startWatch();
+      break;
+
+    case 'stop':
+      if (stopWatch()) {
+        console.log('\n  Watcher stopped.\n');
+      } else {
+        console.log('\n  No watcher is running.\n');
+      }
+      break;
+
+    case 'status':
+      if (isWatchRunning()) {
+        console.log('\n  Watcher: running\n');
+      } else {
+        console.log('\n  Watcher: not running\n');
+      }
+      break;
+
+    case 'install':
+      if (installLaunchAgent()) {
+        console.log('\n  LaunchAgent installed.');
+        console.log('  Watcher will auto-start on login.');
+        console.log('  Run `launchctl load ~/Library/LaunchAgents/ai.secretless.watch.plist` to start now.\n');
+      } else {
+        console.log('\n  LaunchAgent installation is only supported on macOS.\n');
+      }
+      break;
+
+    case 'uninstall':
+      if (uninstallLaunchAgent()) {
+        stopWatch();
+        console.log('\n  LaunchAgent removed. Watcher will no longer auto-start.\n');
+      } else {
+        console.log('\n  No LaunchAgent found to remove.\n');
+      }
+      break;
+
+    default:
+      console.error(`\n  Unknown watch action: ${action}`);
+      console.log('  Usage: secretless-ai watch [start|stop|status|install|uninstall]\n');
+      process.exit(1);
   }
 }
 
@@ -199,6 +356,20 @@ function printHelp(): void {
     npx secretless-ai scan      Scan for hardcoded secrets
     npx secretless-ai status    Show protection status
     npx secretless-ai verify    Verify keys are usable but hidden from AI
+    npx secretless-ai clean     Scan and redact credentials in transcripts
+    npx secretless-ai watch     Monitor transcripts in real-time
+
+  Clean options:
+    --dry-run     Report findings without redacting
+    --path <p>    Scan specific file or directory
+    --last        Only clean the most recent session per project
+
+  Watch actions:
+    start         Start watching (foreground)
+    stop          Stop the watcher
+    status        Check if watcher is running
+    install       Install as macOS LaunchAgent (auto-start on login)
+    uninstall     Remove LaunchAgent
 
   Options:
     -v, --version    Show version

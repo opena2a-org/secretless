@@ -2,6 +2,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+
+// Mock transcript module so unit tests don't scan real ~/.claude/projects/
+vi.mock('./transcript', () => ({
+  discoverTranscripts: () => [],
+  scanTranscriptFile: () => ({ findings: [], redactedLines: null }),
+}));
+
 import { verify } from './verify';
 
 function tmpDir(): string {
@@ -36,6 +43,7 @@ describe('verify', () => {
     const result = verify(dir);
     expect(result.envVars['ANTHROPIC_API_KEY']).toBe(true);
     expect(result.exposedInContext.length).toBe(0);
+    expect(result.exposedInTranscripts.length).toBe(0);
     expect(result.passed).toBe(true);
   });
 
@@ -124,6 +132,7 @@ describe('verify', () => {
     const result = verify(dir);
     expect(result.envVars['ANTHROPIC_API_KEY']).toBe(true);
     expect(result.exposedInContext.length).toBe(0);
+    expect(result.exposedInTranscripts.length).toBe(0);
     expect(result.passed).toBe(true);
   });
 

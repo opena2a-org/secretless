@@ -130,6 +130,23 @@ function configureClaudeCode(projectDir: string, result: InitResult): void {
     result.filesModified.push('.claude/settings.json');
   }
 
+  // Add Stop hook for transcript cleaning after conversations
+  if (!settings.hooks.Stop) settings.hooks.Stop = [];
+
+  const hasTranscriptHook = settings.hooks.Stop.some(
+    (h: any) => h.hooks?.some((hh: any) => hh.command?.includes('secretless-ai'))
+  );
+
+  if (!hasTranscriptHook) {
+    settings.hooks.Stop.push({
+      matcher: '',
+      hooks: [{
+        type: 'command',
+        command: 'npx secretless-ai clean --last 2>/dev/null || true',
+      }],
+    });
+  }
+
   // Add deny rules for secret files
   if (!settings.permissions) settings.permissions = {};
   if (!settings.permissions.deny) settings.permissions.deny = [];
@@ -287,6 +304,11 @@ ${keyTable}
 3. Warn the user to rotate the exposed credential
 
 Verify setup: \`npx secretless-ai verify\`
+
+## Transcript Protection
+- NEVER ask users to paste API keys, tokens, or passwords into the conversation
+- If a user pastes a credential, immediately warn them and suggest using environment variables
+- Credentials in this conversation are automatically redacted by Secretless AI
 `;
 }
 
