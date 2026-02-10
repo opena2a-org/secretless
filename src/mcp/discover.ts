@@ -49,10 +49,9 @@ interface ClientConfigPath {
 function getClientConfigPaths(): ClientConfigPath[] {
   const paths: ClientConfigPath[] = [];
 
-  // Claude Desktop: search both macOS and Linux paths.
-  // On macOS the config lives under ~/Library/Application Support/Claude/,
-  // on Linux under ~/.config/Claude/. We search both so that homeOverride-based
-  // tests work on any platform, and to handle cross-platform edge cases (WSL, etc.).
+  // Claude Desktop: search both macOS and Linux paths on all platforms.
+  // The check is just existsSync (harmless miss), and searching both enables
+  // cross-platform testing via homeOverride.
   paths.push({
     client: 'claude-desktop',
     relativePath: path.join('Library', 'Application Support', 'Claude', 'claude_desktop_config.json'),

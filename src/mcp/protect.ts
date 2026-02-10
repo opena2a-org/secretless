@@ -56,6 +56,9 @@ export interface ProtectResult {
  */
 export async function protectMcp(options: ProtectOptions): Promise<ProtectResult> {
   const home = options.homeDir;
+  if (home && !path.isAbsolute(home)) {
+    throw new Error(`homeDir must be an absolute path, got: "${home}"`);
+  }
   const dataDir = options.dataDir ?? path.join(
     home ?? (process.env.HOME ?? process.env.USERPROFILE ?? '/tmp'),
     '.secretless-ai',

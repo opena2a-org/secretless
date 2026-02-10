@@ -23,6 +23,9 @@ export interface RewriteResult {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Validates server/client names contain only safe characters. */
+const SAFE_NAME = /^[a-zA-Z0-9_.\-]+$/;
+
 /**
  * Check if a server command indicates it is already wrapped by secretless-mcp.
  */
@@ -116,6 +119,9 @@ export function rewriteConfig(
     // Skip if already protected
     if (isProtectedCommand(command, wrapperPath)) continue;
 
+    // Validate server name for defense in depth
+    if (!SAFE_NAME.test(serverName)) continue;
+
     // Skip if no secrets for this server
     const secrets = serverSecrets[serverName];
     if (!secrets || Object.keys(secrets).length === 0) continue;
@@ -151,8 +157,8 @@ export function rewriteConfig(
     return { serversRewritten: 0, backupPath: null };
   }
 
-  // Create backup directory
-  fs.mkdirSync(backupDir, { recursive: true });
+  // Create backup directory with restricted permissions
+  fs.mkdirSync(backupDir, { recursive: true, mode: 0o700 });
 
   // Save backup of original content
   const bkFilename = backupFilename(configPath);
@@ -192,6 +198,14 @@ export function restoreConfig(configPath: string, backupDir: string): boolean {
   }
 
   const backupContent = fs.readFileSync(bkPath, 'utf-8');
+
+  // Verify backup is valid JSON before restoring
+  try {
+    JSON.parse(backupContent);
+  } catch {
+    return false;
+  }
+
   fs.writeFileSync(configPath, backupContent);
 
   return true;

@@ -402,12 +402,7 @@ function runProtectMcp(): void {
 }
 
 function getWrapperPath(): string {
-  // Use the mcp-wrapper.js from this package's dist directory.
-  // MCP configs will use: command: node, args: [wrapperPath, --server, ...]
-  // This is resolved by the install-wrapper module in Task 8.
-  // For now, return the dist path adjacent to this CLI script.
-  const distPath = path.join(__dirname, 'mcp-wrapper.js');
-  return distPath;
+  return path.resolve(__dirname, 'mcp-wrapper.js');
 }
 
 function runMcpStatus(): void {

@@ -31,8 +31,11 @@ export interface WrapperCommand {
 function findPackageRoot(startDir: string): string | null {
   let dir = path.resolve(startDir);
   const root = path.parse(dir).root;
+  const MAX_DEPTH = 20;
+  let depth = 0;
 
-  while (dir !== root) {
+  while (dir !== root && depth < MAX_DEPTH) {
+    depth++;
     const pkgPath = path.join(dir, 'package.json');
     if (fs.existsSync(pkgPath)) {
       try {

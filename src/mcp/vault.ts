@@ -9,6 +9,15 @@ import { LocalBackend } from '../backends/local';
 
 const MCP_PREFIX = 'mcp';
 
+/** Validates client/server names to prevent path traversal. */
+const SAFE_NAME = /^[a-zA-Z0-9_.\-]+$/;
+
+function validateName(label: string, value: string): void {
+  if (!SAFE_NAME.test(value)) {
+    throw new Error(`Invalid ${label} name: "${value}". Only alphanumeric, dash, dot, and underscore allowed.`);
+  }
+}
+
 export class McpVault {
   private readonly backend: LocalBackend;
 
@@ -25,6 +34,8 @@ export class McpVault {
     server: string,
     secrets: Record<string, string>,
   ): Promise<void> {
+    validateName('client', client);
+    validateName('server', server);
     for (const [envKey, value] of Object.entries(secrets)) {
       const storeKey = `${MCP_PREFIX}/${client}/${server}/${envKey}`;
       await this.backend.store(storeKey, value);
@@ -39,6 +50,8 @@ export class McpVault {
     client: string,
     server: string,
   ): Promise<Record<string, string>> {
+    validateName('client', client);
+    validateName('server', server);
     const prefix = `${MCP_PREFIX}/${client}/${server}`;
     const raw = await this.backend.resolve(prefix);
 
@@ -57,6 +70,8 @@ export class McpVault {
    * Remove all secrets for a specific MCP server.
    */
   async removeServerSecrets(client: string, server: string): Promise<void> {
+    validateName('client', client);
+    validateName('server', server);
     const prefix = `${MCP_PREFIX}/${client}/${server}`;
     const existing = await this.backend.resolve(prefix);
 
