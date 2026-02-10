@@ -10,6 +10,7 @@ import { SECRET_FILE_PATTERNS, CREDENTIAL_PATTERNS, CONFIG_FILES } from './patte
 
 /** Known API services with their auth header formats */
 const SERVICE_HINTS: Record<string, { service: string; authHeader: string }> = {
+  // Existing services
   ANTHROPIC_API_KEY: { service: 'Anthropic Messages API', authHeader: 'x-api-key: $ANTHROPIC_API_KEY' },
   OPENAI_API_KEY: { service: 'OpenAI API', authHeader: 'Authorization: Bearer $OPENAI_API_KEY' },
   GAMMA_API_KEY: { service: 'Gamma API', authHeader: 'X-API-KEY: $GAMMA_API_KEY' },
@@ -21,6 +22,31 @@ const SERVICE_HINTS: Record<string, { service: string; authHeader: string }> = {
   SENDGRID_API_KEY: { service: 'SendGrid API', authHeader: 'Authorization: Bearer $SENDGRID_API_KEY' },
   SUPABASE_SERVICE_ROLE_KEY: { service: 'Supabase', authHeader: 'apikey: $SUPABASE_SERVICE_ROLE_KEY' },
   AZURE_API_KEY: { service: 'Azure', authHeader: 'api-key: $AZURE_API_KEY' },
+  // AI/ML
+  GROQ_API_KEY: { service: 'Groq API', authHeader: 'Authorization: Bearer $GROQ_API_KEY' },
+  OPENROUTER_API_KEY: { service: 'OpenRouter API', authHeader: 'Authorization: Bearer $OPENROUTER_API_KEY' },
+  REPLICATE_API_TOKEN: { service: 'Replicate API', authHeader: 'Authorization: Token $REPLICATE_API_TOKEN' },
+  HUGGING_FACE_HUB_TOKEN: { service: 'Hugging Face', authHeader: 'Authorization: Bearer $HUGGING_FACE_HUB_TOKEN' },
+  PERPLEXITY_API_KEY: { service: 'Perplexity API', authHeader: 'Authorization: Bearer $PERPLEXITY_API_KEY' },
+  FIREWORKS_API_KEY: { service: 'Fireworks AI', authHeader: 'Authorization: Bearer $FIREWORKS_API_KEY' },
+  // Developer platforms
+  GITLAB_TOKEN: { service: 'GitLab API', authHeader: 'PRIVATE-TOKEN: $GITLAB_TOKEN' },
+  NPM_TOKEN: { service: 'npm Registry', authHeader: '//registry.npmjs.org/:_authToken=$NPM_TOKEN' },
+  // Cloud providers
+  DIGITALOCEAN_TOKEN: { service: 'DigitalOcean API', authHeader: 'Authorization: Bearer $DIGITALOCEAN_TOKEN' },
+  HEROKU_API_KEY: { service: 'Heroku API', authHeader: 'Authorization: Bearer $HEROKU_API_KEY' },
+  NETLIFY_AUTH_TOKEN: { service: 'Netlify API', authHeader: 'Authorization: Bearer $NETLIFY_AUTH_TOKEN' },
+  FLY_API_TOKEN: { service: 'Fly.io API', authHeader: 'Authorization: Bearer $FLY_API_TOKEN' },
+  // Monitoring
+  SENTRY_AUTH_TOKEN: { service: 'Sentry API', authHeader: 'Authorization: Bearer $SENTRY_AUTH_TOKEN' },
+  NEW_RELIC_API_KEY: { service: 'New Relic API', authHeader: 'API-Key: $NEW_RELIC_API_KEY' },
+  LINEAR_API_KEY: { service: 'Linear API', authHeader: 'Authorization: $LINEAR_API_KEY' },
+  // Communication
+  TELEGRAM_BOT_TOKEN: { service: 'Telegram Bot API', authHeader: 'URL path: /bot$TELEGRAM_BOT_TOKEN/' },
+  TWILIO_API_KEY: { service: 'Twilio API', authHeader: 'Basic auth with $TWILIO_API_KEY:$TWILIO_API_SECRET' },
+  // Database
+  MONGODB_URI: { service: 'MongoDB', authHeader: '(connection string)' },
+  DATABASE_URL: { service: 'Database', authHeader: '(connection string)' },
 };
 
 interface InitResult {
