@@ -5,7 +5,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { CREDENTIAL_PATTERNS, CONFIG_FILES } from './patterns';
+import { CREDENTIAL_PATTERNS, CONFIG_FILES, CREDENTIAL_PREFIX_QUICK_CHECK } from './patterns';
 
 export interface ScanFinding {
   file: string;
@@ -48,7 +48,7 @@ export function scan(projectDir: string, options?: ScanOptions): ScanFinding[] {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (line.length > 4096) continue;
-        if (/\$\{[A-Z_]+\}/.test(line) && !/sk-ant|sk-proj|AKIA|ghp_|xox[baprs]/.test(line)) continue;
+        if (/\$\{[A-Z_]+\}/.test(line) && !CREDENTIAL_PREFIX_QUICK_CHECK.test(line)) continue;
         for (const pattern of CREDENTIAL_PATTERNS) {
           if (pattern.regex.test(line)) {
             const globalRegex = new RegExp(pattern.regex.source, pattern.regex.flags.includes('g') ? pattern.regex.flags : pattern.regex.flags + 'g');
@@ -86,7 +86,7 @@ export function scan(projectDir: string, options?: ScanOptions): ScanFinding[] {
         if (line.length > 4096) continue; // ReDoS protection
 
         // Skip env var references and placeholders
-        if (/\$\{[A-Z_]+\}/.test(line) && !/sk-ant|sk-proj|AKIA|ghp_|xox[baprs]/.test(line)) {
+        if (/\$\{[A-Z_]+\}/.test(line) && !CREDENTIAL_PREFIX_QUICK_CHECK.test(line)) {
           continue;
         }
 
