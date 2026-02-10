@@ -6,3 +6,12 @@ export { detectAITools, toolDisplayName, type AITool } from './detect';
 export { CREDENTIAL_PATTERNS, SECRET_FILE_PATTERNS, CONFIG_FILES, CREDENTIAL_PREFIX_QUICK_CHECK, type CredentialPattern } from './patterns';
 export { cleanTranscripts, discoverTranscripts, type CleanResult, type CleanOptions, type TranscriptFinding } from './transcript';
 export { startWatch, stopWatch, isWatchRunning } from './watch';
+
+// MCP protection
+export {
+  discoverMcpConfigs, classifyEnvVars, McpVault,
+  protectMcp, rewriteConfig, restoreConfig,
+  type McpClient, type McpConfigFile, type McpServerEntry,
+  type ClassifiedEnv, type ProtectOptions, type ProtectResult,
+  type RewriteResult,
+} from './mcp';
