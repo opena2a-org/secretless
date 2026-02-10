@@ -12,6 +12,8 @@ const SECRETLESS_DIR = path.join(os.homedir(), '.secretless-ai');
 const PID_FILE = path.join(SECRETLESS_DIR, 'watch.pid');
 const LOG_FILE = path.join(SECRETLESS_DIR, 'watch.log');
 const TRANSCRIPT_DIR = path.join(os.homedir(), '.claude', 'projects');
+/** Canonical resolved path — cached once to prevent TOCTOU with symlinks */
+let resolvedTranscriptDir: string | null = null;
 
 /** Debounce window in milliseconds */
 const DEBOUNCE_MS = 3000;
@@ -35,9 +37,28 @@ export function startWatch(options?: { logFile?: string }): void {
     return;
   }
 
-  // Write PID file with start time for TOCTOU protection
+  // Resolve and cache the canonical transcript directory path
+  resolvedTranscriptDir = fs.realpathSync(TRANSCRIPT_DIR);
+
+  // Write PID file with start time for TOCTOU protection (O_EXCL prevents concurrent writers)
   const pidData = JSON.stringify({ pid: process.pid, startedAt: Date.now() });
-  fs.writeFileSync(PID_FILE, pidData);
+  try {
+    const fd = fs.openSync(PID_FILE, 'wx');
+    fs.writeSync(fd, pidData);
+    fs.closeSync(fd);
+  } catch (err: any) {
+    if (err.code === 'EEXIST') {
+      // Another watcher may be running — check before overwriting
+      if (isWatchRunning()) {
+        log(logPath, 'Another watcher is already running.');
+        return;
+      }
+      // Stale PID file — overwrite
+      fs.writeFileSync(PID_FILE, pidData);
+    } else {
+      throw err;
+    }
+  }
   log(logPath, `Watcher started (PID: ${process.pid})`);
   log(logPath, `Monitoring: ${TRANSCRIPT_DIR}`);
 
@@ -57,7 +78,7 @@ export function startWatch(options?: { logFile?: string }): void {
     } catch {
       return; // File may not exist yet
     }
-    if (!realPath.startsWith(fs.realpathSync(TRANSCRIPT_DIR))) return;
+    if (!resolvedTranscriptDir || !realPath.startsWith(resolvedTranscriptDir)) return;
 
     // Skip if in tool-results
     if (filename.includes('tool-results')) return;
@@ -183,11 +204,15 @@ export function installLaunchAgent(): boolean {
   const plistPath = path.join(launchAgentsDir, `${LAUNCH_AGENT_LABEL}.plist`);
 
   // Resolve absolute path to npx to prevent PATH hijacking
-  let npxPath = 'npx';
+  let npxPath = '/usr/local/bin/npx';
   try {
     const { execSync } = require('child_process');
-    npxPath = execSync('which npx', { encoding: 'utf-8' }).trim() || 'npx';
-  } catch { /* fallback to bare npx */ }
+    const resolved = execSync('which npx', { encoding: 'utf-8' }).trim();
+    // Validate path contains only safe characters (prevent XML injection in plist)
+    if (resolved && /^[/a-zA-Z0-9._-]+$/.test(resolved)) {
+      npxPath = resolved;
+    }
+  } catch { /* fallback to default path */ }
 
   const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

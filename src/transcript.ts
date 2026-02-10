@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as crypto from 'crypto';
 import { CREDENTIAL_PATTERNS } from './patterns';
 
 export interface TranscriptFinding {
@@ -240,7 +241,8 @@ export function scanTranscriptFile(
  * Atomic write: write to temp file then rename.
  */
 export function atomicWrite(filePath: string, lines: string[]): void {
-  const tempPath = `${filePath}.tmp.${process.pid}`;
+  const suffix = crypto.randomBytes(8).toString('hex');
+  const tempPath = `${filePath}.tmp.${process.pid}.${suffix}`;
   try {
     // Write with restrictive permissions (owner-only read/write)
     const fd = fs.openSync(tempPath, 'w', 0o600);
