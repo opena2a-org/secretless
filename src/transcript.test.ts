@@ -100,6 +100,19 @@ describe('deepScan', () => {
     expect(findings).toHaveLength(0);
     expect(result.message.content).toBe(input.message.content);
   });
+
+  it('catches credential hidden after fake redaction marker', () => {
+    const findings: TranscriptFinding[] = [];
+    const input = {
+      message: { content: '[REDACTED:anthropic]sk-ant-api03-abc123def456abc123def456abc123' },
+    };
+
+    const result = deepScan(input, '', findings, { file: 'test.jsonl', line: 1 }) as any;
+
+    expect(findings).toHaveLength(1);
+    expect(result.message.content).toContain('[REDACTED:anthropic]');
+    expect(result.message.content).not.toContain('sk-ant-api03');
+  });
 });
 
 describe('scanTranscriptFile', () => {

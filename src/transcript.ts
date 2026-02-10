@@ -31,11 +31,15 @@ export interface CleanOptions {
   lastSession?: boolean;
 }
 
-/** Metadata keys that should never be scanned for credentials */
-const SKIP_KEYS = new Set(['uuid', 'sessionId', 'parentUuid', 'timestamp', 'signature', 'cacheKey', 'hash']);
+/** Metadata keys that should never be scanned for credentials (ID/hash fields, not user content) */
+const SKIP_KEYS = new Set([
+  'uuid', 'sessionId', 'parentUuid', 'timestamp', 'signature',
+  'cacheKey', 'hash', 'requestId', 'traceId', 'spanId', 'correlationId',
+  'messageId', 'conversationId', 'cacheCreatedAt',
+]);
 
-/** Max line size to process (ReDoS protection) */
-const MAX_LINE_SIZE = 500 * 1024;
+/** Max string/line size to process (ReDoS protection — 50KB per string value) */
+const MAX_LINE_SIZE = 50 * 1024;
 
 /**
  * Discover Claude Code transcript files.
@@ -138,9 +142,6 @@ function scanString(
   findings: TranscriptFinding[],
   fileInfo: { file: string; line: number },
 ): string {
-  // Skip already-redacted values (idempotency)
-  if (value.includes('[REDACTED:')) return value;
-
   // Skip very long strings (ReDoS protection)
   if (value.length > MAX_LINE_SIZE) return value;
 
@@ -241,7 +242,10 @@ export function scanTranscriptFile(
 export function atomicWrite(filePath: string, lines: string[]): void {
   const tempPath = `${filePath}.tmp.${process.pid}`;
   try {
-    fs.writeFileSync(tempPath, lines.join('\n'));
+    // Write with restrictive permissions (owner-only read/write)
+    const fd = fs.openSync(tempPath, 'w', 0o600);
+    fs.writeSync(fd, lines.join('\n'));
+    fs.closeSync(fd);
     fs.renameSync(tempPath, filePath);
   } catch (err) {
     // Clean up temp file on error

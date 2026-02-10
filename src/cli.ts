@@ -245,6 +245,15 @@ function runClean(args: string[]): void {
     targetPath = path.resolve(args[pathIdx + 1]);
   }
 
+  // Warn when scanning outside the default transcript directory
+  if (targetPath) {
+    const os = require('os');
+    const claudeDir = path.join(os.homedir(), '.claude');
+    if (!targetPath.startsWith(claudeDir)) {
+      console.log(`  Note: scanning outside ~/.claude/ — target: ${targetPath}\n`);
+    }
+  }
+
   console.log('\n  Scanning Claude Code transcripts...\n');
 
   const result = cleanTranscripts({ dryRun, targetPath, lastSession });

@@ -33,6 +33,12 @@ describe('watch - PID management', () => {
     expect(isWatchRunning()).toBe(true);
   });
 
+  it('isWatchRunning handles JSON PID format', () => {
+    const pidData = JSON.stringify({ pid: process.pid, startedAt: Date.now() });
+    fs.writeFileSync(PID_FILE, pidData);
+    expect(isWatchRunning()).toBe(true);
+  });
+
   it('stopWatch returns false when no PID file exists', () => {
     expect(stopWatch()).toBe(false);
   });

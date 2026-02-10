@@ -35,8 +35,9 @@ export function startWatch(options?: { logFile?: string }): void {
     return;
   }
 
-  // Write PID file
-  fs.writeFileSync(PID_FILE, String(process.pid));
+  // Write PID file with start time for TOCTOU protection
+  const pidData = JSON.stringify({ pid: process.pid, startedAt: Date.now() });
+  fs.writeFileSync(PID_FILE, pidData);
   log(logPath, `Watcher started (PID: ${process.pid})`);
   log(logPath, `Monitoring: ${TRANSCRIPT_DIR}`);
 
@@ -48,6 +49,15 @@ export function startWatch(options?: { logFile?: string }): void {
     if (!filename || !filename.endsWith('.jsonl')) return;
 
     const fullPath = path.join(TRANSCRIPT_DIR, filename);
+
+    // Path traversal protection: resolve and verify the path stays within TRANSCRIPT_DIR
+    let realPath: string;
+    try {
+      realPath = fs.realpathSync(fullPath);
+    } catch {
+      return; // File may not exist yet
+    }
+    if (!realPath.startsWith(fs.realpathSync(TRANSCRIPT_DIR))) return;
 
     // Skip if in tool-results
     if (filename.includes('tool-results')) return;
@@ -108,15 +118,15 @@ function log(logPath: string, message: string): void {
  * Stop the running watcher process.
  */
 export function stopWatch(): boolean {
-  if (!fs.existsSync(PID_FILE)) return false;
+  const pidInfo = readPidFile();
+  if (!pidInfo) return false;
 
   try {
-    const pid = parseInt(fs.readFileSync(PID_FILE, 'utf-8').trim(), 10);
-    process.kill(pid, 'SIGTERM');
-    fs.unlinkSync(PID_FILE);
+    process.kill(pidInfo.pid, 'SIGTERM');
+    try { fs.unlinkSync(PID_FILE); } catch { /* ignore */ }
     return true;
   } catch {
-    // Process may already be dead
+    // Process may already be dead — clean up stale PID file
     try { fs.unlinkSync(PID_FILE); } catch { /* ignore */ }
     return false;
   }
@@ -126,15 +136,39 @@ export function stopWatch(): boolean {
  * Check if the watcher is currently running.
  */
 export function isWatchRunning(): boolean {
-  if (!fs.existsSync(PID_FILE)) return false;
+  const pidInfo = readPidFile();
+  if (!pidInfo) return false;
 
   try {
-    const pid = parseInt(fs.readFileSync(PID_FILE, 'utf-8').trim(), 10);
-    process.kill(pid, 0); // Signal 0 = check if process exists
+    process.kill(pidInfo.pid, 0); // Signal 0 = check if process exists
     return true;
   } catch {
     return false;
   }
+}
+
+/** Read and parse PID file. Handles both legacy (plain number) and new (JSON) formats. */
+function readPidFile(): { pid: number; startedAt: number } | null {
+  if (!fs.existsSync(PID_FILE)) return null;
+
+  try {
+    const raw = fs.readFileSync(PID_FILE, 'utf-8').trim();
+    // Try JSON object format first
+    try {
+      const data = JSON.parse(raw);
+      if (data && typeof data === 'object' && typeof data.pid === 'number') {
+        return data;
+      }
+    } catch {
+      // Not valid JSON — fall through to legacy handling
+    }
+    // Fallback: legacy plain PID format
+    const pid = parseInt(raw, 10);
+    if (!isNaN(pid) && pid > 0) return { pid, startedAt: 0 };
+  } catch {
+    // Unreadable PID file
+  }
+  return null;
 }
 
 /**
@@ -148,6 +182,13 @@ export function installLaunchAgent(): boolean {
 
   const plistPath = path.join(launchAgentsDir, `${LAUNCH_AGENT_LABEL}.plist`);
 
+  // Resolve absolute path to npx to prevent PATH hijacking
+  let npxPath = 'npx';
+  try {
+    const { execSync } = require('child_process');
+    npxPath = execSync('which npx', { encoding: 'utf-8' }).trim() || 'npx';
+  } catch { /* fallback to bare npx */ }
+
   const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -156,7 +197,7 @@ export function installLaunchAgent(): boolean {
   <string>${LAUNCH_AGENT_LABEL}</string>
   <key>ProgramArguments</key>
   <array>
-    <string>npx</string>
+    <string>${npxPath}</string>
     <string>secretless-ai</string>
     <string>watch</string>
     <string>start</string>
