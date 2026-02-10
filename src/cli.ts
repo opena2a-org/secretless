@@ -16,7 +16,8 @@ import { status } from './status';
 import { verify } from './verify';
 import { toolDisplayName } from './detect';
 
-const VERSION = '0.3.0';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { version: VERSION } = require('../package.json');
 
 function main(): void {
   const args = process.argv.slice(2);

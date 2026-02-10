@@ -22,7 +22,7 @@ export const CREDENTIAL_PATTERNS: CredentialPattern[] = [
   { id: 'stripe', name: 'Stripe Live Key', regex: /sk_live_[0-9a-zA-Z]{24,}/, envPrefix: 'STRIPE_SECRET_KEY' },
   { id: 'sendgrid', name: 'SendGrid Key', regex: /SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}/, envPrefix: 'SENDGRID_API_KEY' },
   { id: 'supabase', name: 'Supabase Service Key', regex: /eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.[a-zA-Z0-9_-]{50,}/, envPrefix: 'SUPABASE_SERVICE_ROLE_KEY' },
-  { id: 'azure', name: 'Azure Key', regex: /[a-zA-Z0-9+/]{43}=/, envPrefix: 'AZURE_API_KEY' },
+  { id: 'azure', name: 'Azure Key', regex: /(?:AccountKey|SharedAccessKey|azure[_-]?(?:storage|key|account))\s*[=:]\s*[a-zA-Z0-9+/]{43}=/i, envPrefix: 'AZURE_API_KEY' },
 ];
 
 /** File patterns that should never be read by AI tools */
