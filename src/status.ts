@@ -49,7 +49,7 @@ export function status(projectDir: string): StatusResult {
     if (fs.existsSync(filePath)) {
       try {
         const content = fs.readFileSync(filePath, 'utf-8');
-        if (content.includes('secretless-ai:managed') || content.includes('Secretless AI')) {
+        if (content.includes('secretless:managed') || content.includes('Secretless AI')) {
           result.configuredTools.push(tool.tool);
         }
       } catch {
@@ -63,7 +63,7 @@ export function status(projectDir: string): StatusResult {
   if (fs.existsSync(claudeMd)) {
     try {
       const content = fs.readFileSync(claudeMd, 'utf-8');
-      if (content.includes('secretless-ai:managed') && !result.configuredTools.includes('claude-code')) {
+      if (content.includes('secretless:managed') && !result.configuredTools.includes('claude-code')) {
         result.configuredTools.push('claude-code');
       }
     } catch {

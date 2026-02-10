@@ -51,7 +51,8 @@ export function scan(projectDir: string, options?: ScanOptions): ScanFinding[] {
         if (/\$\{[A-Z_]+\}/.test(line) && !/sk-ant|sk-proj|AKIA|ghp_|xox[baprs]/.test(line)) continue;
         for (const pattern of CREDENTIAL_PATTERNS) {
           if (pattern.regex.test(line)) {
-            const masked = line.replace(pattern.regex, `[${pattern.name} REDACTED]`);
+            const globalRegex = new RegExp(pattern.regex.source, pattern.regex.flags.includes('g') ? pattern.regex.flags : pattern.regex.flags + 'g');
+            const masked = line.replace(globalRegex, `[${pattern.name} REDACTED]`);
             findings.push({
               file: global.label,
               line: i + 1,
@@ -91,8 +92,9 @@ export function scan(projectDir: string, options?: ScanOptions): ScanFinding[] {
 
         for (const pattern of CREDENTIAL_PATTERNS) {
           if (pattern.regex.test(line)) {
-            // Mask the actual secret in the preview
-            const masked = line.replace(pattern.regex, `[${pattern.name} REDACTED]`);
+            // Mask the actual secret in the preview (replace ALL occurrences)
+            const globalRegex = new RegExp(pattern.regex.source, pattern.regex.flags.includes('g') ? pattern.regex.flags : pattern.regex.flags + 'g');
+            const masked = line.replace(globalRegex, `[${pattern.name} REDACTED]`);
 
             findings.push({
               file: configFile,

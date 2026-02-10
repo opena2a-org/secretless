@@ -40,7 +40,7 @@ npx secretless-ai init
 Output:
 
 ```
-  Secretless v0.2.0
+  Secretless v0.3.0
   Keeping secrets out of AI
 
   Detected:
@@ -173,6 +173,15 @@ For Claude Code, Secretless installs a PreToolUse hook that intercepts every `Re
 ```
 
 Additionally, Secretless adds `permissions.deny` rules to `.claude/settings.json` as a second layer of defense, and adds instructions to `CLAUDE.md` so Claude understands why certain files are blocked.
+
+## Development
+
+```bash
+npm run build      # Compile TypeScript to dist/
+npm test           # Run tests (vitest)
+npm run dev        # Watch mode — recompile on file changes
+npm run clean      # Remove dist/ directory
+```
 
 ## Requirements
 
