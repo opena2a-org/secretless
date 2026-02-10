@@ -11,7 +11,82 @@ Part of the [OpenA2A](https://opena2a.org) ecosystem — open-source security fo
 npx secretless-ai init
 ```
 
-## The Problem
+## MCP Secret Protection
+
+Every MCP server config has plaintext API keys sitting in JSON files on your laptop. The LLM sees them. Secretless encrypts them.
+
+```bash
+npx secretless-ai protect-mcp
+```
+
+```
+  Secretless MCP Protection
+
+  Scanned 1 client(s)
+
+  + claude-desktop/browserbase
+      BROWSERBASE_API_KEY (encrypted)
+  + claude-desktop/github
+      GITHUB_PERSONAL_ACCESS_TOKEN (encrypted)
+  + claude-desktop/stripe
+      STRIPE_SECRET_KEY (encrypted)
+
+  3 secret(s) encrypted across 3 server(s).
+
+  MCP servers will start normally — no workflow changes needed.
+```
+
+**What happens:**
+
+1. Scans MCP configs across Claude Desktop, Cursor, Claude Code, VS Code, and Windsurf
+2. Identifies which env vars are secrets (key name patterns + value regex matching)
+3. Encrypts secrets into a local AES-256-GCM vault (`~/.secretless-ai/mcp-vault/`)
+4. Rewrites configs to use the `secretless-mcp` wrapper — decrypts at runtime, injects as env vars
+5. Non-secret env vars (URLs, org names, regions) stay in the config untouched
+
+**Before:**
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["@github/mcp-server"],
+      "env": {
+        "GITHUB_TOKEN": "ghp_plaintext_visible_to_LLM",
+        "GITHUB_ORG": "my-org"
+      }
+    }
+  }
+}
+```
+
+**After:**
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "secretless-mcp",
+      "args": ["--server", "github", "--client", "claude-desktop", "--", "npx", "@github/mcp-server"],
+      "env": {
+        "GITHUB_ORG": "my-org"
+      }
+    }
+  }
+}
+```
+
+The secret moves to the encrypted vault. The wrapper decrypts it at startup (<10ms overhead) and passes it to the MCP server as an env var. The LLM never sees it.
+
+**Other MCP commands:**
+
+```bash
+npx secretless-ai mcp-status      # Show which servers are protected/exposed
+npx secretless-ai mcp-unprotect   # Restore original configs from backup
+```
+
+---
+
+## AI Context Protection
 
 AI coding tools read your files to provide context. That includes `.env` files, API keys in config, SSH keys, and cloud credentials. Once a secret enters an AI context window, it's sent to a remote API — and you can't take it back.
 
@@ -40,7 +115,7 @@ npx secretless-ai init
 Output:
 
 ```
-  Secretless v0.3.0
+  Secretless v0.6.0
   Keeping secrets out of AI
 
   Detected:
@@ -114,7 +189,7 @@ Detects AI tools in your project and installs protections. If API keys are set a
 
 ### `npx secretless-ai scan`
 
-Scans config files for hardcoded credentials — both project-level and global (`~/.claude/CLAUDE.md`). Detects 12 credential patterns including Anthropic, OpenAI, AWS, GitHub, Slack, Google, Stripe, SendGrid, Supabase, and Azure keys.
+Scans config files for hardcoded credentials — both project-level and global (`~/.claude/CLAUDE.md`). Detects 49 credential patterns including Anthropic, OpenAI, AWS, GitHub, Slack, Google, Stripe, SendGrid, Supabase, Azure, GitLab, Twilio, Mailgun, and more.
 
 ```
   Found 2 credential(s):
@@ -136,6 +211,18 @@ Confirms keys are usable but hidden from AI. Checks that env vars are set AND th
   PASS: Secrets are accessible via env vars but hidden from AI context.
 ```
 
+### `npx secretless-ai protect-mcp`
+
+Scans all MCP configs on your machine, encrypts plaintext secrets into a local vault, and rewrites configs to use the `secretless-mcp` wrapper. Safe to run multiple times — skips already-protected servers.
+
+### `npx secretless-ai mcp-status`
+
+Shows protection status for every MCP server across all clients. Tells you which servers have exposed secrets and which are protected.
+
+### `npx secretless-ai mcp-unprotect`
+
+Restores all MCP configs to their original state from backups. One command to undo everything.
+
 ### `npx secretless-ai status`
 
 Shows current protection status.
@@ -154,9 +241,9 @@ Shows current protection status.
 
 `.env`, `.env.*`, `*.key`, `*.pem`, `*.p12`, `*.pfx`, `*.crt`, `.aws/credentials`, `.ssh/*`, `.docker/config.json`, `.git-credentials`, `.npmrc`, `.pypirc`, `*.tfstate`, `*.tfvars`, `secrets/`, `credentials/`
 
-### Credential patterns (12)
+### Credential patterns (49)
 
-Anthropic API keys, OpenAI keys (project + legacy), AWS access keys, GitHub PATs (classic + fine-grained), Slack tokens, Google API keys, Stripe live keys, SendGrid keys, Supabase service keys, Azure keys
+Anthropic API keys, OpenAI keys, AWS access keys, GitHub PATs, Slack tokens, Google API keys, Stripe keys, SendGrid keys, Supabase keys, Azure keys, GitLab tokens, Twilio keys, Mailgun keys, MongoDB URIs, JWTs, and 34 more
 
 ### Bash commands
 

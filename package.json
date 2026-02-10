@@ -1,13 +1,14 @@
 {
   "name": "secretless-ai",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "One command to keep secrets out of AI. Works with Claude Code, Cursor, Copilot, Windsurf, and any AI coding tool.",
   "license": "Apache-2.0",
   "type": "commonjs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "secretless-ai": "dist/cli.js"
+    "secretless-ai": "dist/cli.js",
+    "secretless-mcp": "dist/mcp-wrapper.js"
   },
   "files": [
     "dist"
@@ -30,7 +31,9 @@
     "windsurf",
     "cline",
     "aider",
-    "mcp"
+    "mcp",
+    "mcp-security",
+    "mcp-secrets"
   ],
   "repository": {
     "type": "git",

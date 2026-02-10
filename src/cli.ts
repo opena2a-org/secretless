@@ -20,6 +20,10 @@ import { verify } from './verify';
 import { toolDisplayName } from './detect';
 import { cleanTranscripts } from './transcript';
 import { startWatch, stopWatch, isWatchRunning, installLaunchAgent, uninstallLaunchAgent } from './watch';
+import { protectMcp } from './mcp/protect';
+import { discoverMcpConfigs } from './mcp/discover';
+import { classifyEnvVars } from './mcp/classify';
+import { restoreConfig } from './mcp/rewrite';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { version: VERSION } = require('../package.json');
@@ -58,6 +62,15 @@ function main(): void {
       break;
     case 'watch':
       runWatch(args.slice(1));
+      break;
+    case 'protect-mcp':
+      runProtectMcp();
+      break;
+    case 'mcp-status':
+      runMcpStatus();
+      break;
+    case 'mcp-unprotect':
+      runMcpUnprotect();
       break;
     case '--version':
     case '-v':
@@ -346,6 +359,106 @@ function runWatch(args: string[]): void {
   }
 }
 
+function runProtectMcp(): void {
+  console.log('\n  Secretless MCP Protection\n');
+
+  const wrapperPath = getWrapperPath();
+
+  protectMcp({ wrapperPath }).then((result) => {
+    if (result.clientsScanned === 0) {
+      console.log('  No MCP configurations found.\n');
+      console.log('  Looked for configs from: Claude Desktop, Cursor, Claude Code, VS Code, Windsurf');
+      console.log('  If your configs are in a non-standard location, please open an issue.\n');
+      return;
+    }
+
+    console.log(`  Scanned ${result.clientsScanned} client(s)\n`);
+
+    if (result.secretsFound === 0) {
+      console.log('  No plaintext secrets found in MCP configs. Already clean.\n');
+      return;
+    }
+
+    for (const server of result.servers) {
+      console.log(`  + ${server.client}/${server.server}`);
+      for (const key of server.secretKeys) {
+        console.log(`      ${key} (encrypted)`);
+      }
+    }
+    console.log();
+
+    console.log(`  ${result.secretsFound} secret(s) encrypted across ${result.serversProtected} server(s).`);
+    if (result.alreadyProtected > 0) {
+      console.log(`  ${result.alreadyProtected} server(s) already protected.`);
+    }
+    console.log();
+    console.log('  MCP servers will start normally — no workflow changes needed.');
+    console.log('  Run `npx secretless-ai mcp-status` to check status anytime.');
+    console.log('  Run `npx secretless-ai mcp-unprotect` to restore originals.\n');
+  }).catch((err) => {
+    console.error(`\n  Error: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.exit(1);
+  });
+}
+
+function getWrapperPath(): string {
+  return path.resolve(__dirname, 'mcp-wrapper.js');
+}
+
+function runMcpStatus(): void {
+  console.log('\n  Secretless MCP Status\n');
+
+  const configs = discoverMcpConfigs();
+
+  if (configs.length === 0) {
+    console.log('  No MCP configurations found.\n');
+    return;
+  }
+
+  for (const config of configs) {
+    console.log(`  ${config.client} (${config.filePath})`);
+    for (const server of config.servers) {
+      if (server.alreadyProtected) {
+        console.log(`    + ${server.name}: protected`);
+      } else {
+        const secretCount = Object.keys(classifyEnvVars(server.env).secrets).length;
+        if (secretCount > 0) {
+          console.log(`    ! ${server.name}: EXPOSED (${secretCount} plaintext secret(s))`);
+        } else {
+          console.log(`    * ${server.name}: clean (no secrets in env)`);
+        }
+      }
+    }
+    console.log();
+  }
+
+  console.log('  Run `npx secretless-ai protect-mcp` to encrypt exposed secrets.\n');
+}
+
+function runMcpUnprotect(): void {
+  console.log('\n  Secretless MCP Unprotect\n');
+
+  const os = require('os');
+  const home = os.homedir();
+  const backupDir = path.join(home, '.secretless-ai', 'mcp-backups');
+
+  const configs = discoverMcpConfigs();
+  let restored = 0;
+
+  for (const config of configs) {
+    if (restoreConfig(config.filePath, backupDir)) {
+      console.log(`  + Restored: ${config.filePath}`);
+      restored++;
+    }
+  }
+
+  if (restored === 0) {
+    console.log('  No backups found to restore.\n');
+  } else {
+    console.log(`\n  Restored ${restored} config(s) to original state.\n`);
+  }
+}
+
 function printHelp(): void {
   console.log(`
   Secretless v${VERSION}
@@ -358,6 +471,11 @@ function printHelp(): void {
     npx secretless-ai verify    Verify keys are usable but hidden from AI
     npx secretless-ai clean     Scan and redact credentials in transcripts
     npx secretless-ai watch     Monitor transcripts in real-time
+
+  MCP Protection:
+    npx secretless-ai protect-mcp    Encrypt MCP server secrets
+    npx secretless-ai mcp-status     Show MCP protection status
+    npx secretless-ai mcp-unprotect  Restore original MCP configs
 
   Clean options:
     --dry-run     Report findings without redacting
