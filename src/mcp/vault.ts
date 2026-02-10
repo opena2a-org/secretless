@@ -10,11 +10,11 @@ import { LocalBackend } from '../backends/local';
 const MCP_PREFIX = 'mcp';
 
 /** Validates client/server names to prevent path traversal. */
-const SAFE_NAME = /^[a-zA-Z0-9_.\-]+$/;
+const SAFE_NAME = /^[a-zA-Z0-9_\-]+$/;
 
 function validateName(label: string, value: string): void {
   if (!SAFE_NAME.test(value)) {
-    throw new Error(`Invalid ${label} name: "${value}". Only alphanumeric, dash, dot, and underscore allowed.`);
+    throw new Error(`Invalid ${label} name: "${value}". Only alphanumeric, dash, and underscore allowed.`);
   }
 }
 

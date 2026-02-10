@@ -72,6 +72,8 @@ const NON_SECRET_SUFFIXES = [
 
 /** Matches a URI scheme with embedded username:password before the @ sign. */
 const URI_WITH_PASSWORD_RE = /^[a-z][a-z0-9+.-]*:\/\/[^:]+:[^@]+@/i;
+/** Max env var value length to test against URI regex (prevents ReDoS). */
+const MAX_URI_CHECK_LEN = 4096;
 
 /**
  * Check whether a value matches any of the 49 credential patterns
@@ -136,7 +138,7 @@ export function classifyEnvVars(env: Record<string, string>): ClassifiedEnv {
 
     // 5. Non-secret suffix (but URI with embedded password -> secret)
     if (hasSuffix(key, NON_SECRET_SUFFIXES)) {
-      if (URI_WITH_PASSWORD_RE.test(value)) {
+      if (value.length <= MAX_URI_CHECK_LEN && URI_WITH_PASSWORD_RE.test(value)) {
         secrets[key] = value;
       } else {
         nonSecrets[key] = value;

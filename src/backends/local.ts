@@ -24,7 +24,9 @@ export class LocalBackend implements SecretBackend {
     const home = process.env.HOME ?? process.env.USERPROFILE ?? '/tmp';
     this.storeDir = (config?.storeDir as string) ?? path.join(home, '.secretless-ai', 'store');
 
-    // Derive key from machine-specific data (not perfect, but better than plaintext)
+    // Derive key from machine-specific data. This deters casual reads but does not
+    // protect against an attacker with filesystem access. A future version should
+    // use OS keychain (macOS Keychain, libsecret) or a user-supplied passphrase.
     const keyMaterial = (config?.key as string) ?? `${home}-secretless-${process.env.USER ?? 'default'}`;
     this.encryptionKey = crypto.createHash('sha256').update(keyMaterial).digest();
   }

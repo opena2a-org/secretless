@@ -24,7 +24,7 @@ export interface RewriteResult {
 // ---------------------------------------------------------------------------
 
 /** Validates server/client names contain only safe characters. */
-const SAFE_NAME = /^[a-zA-Z0-9_.\-]+$/;
+const SAFE_NAME = /^[a-zA-Z0-9_\-]+$/;
 
 /**
  * Check if a server command indicates it is already wrapped by secretless-mcp.
@@ -42,7 +42,7 @@ function isProtectedCommand(command: string, wrapperPath: string): boolean {
  */
 function backupFilename(configPath: string): string {
   const hash = crypto.createHash('sha256').update(configPath).digest('hex');
-  return `${hash.slice(0, 12)}.json`;
+  return `${hash}.json`;
 }
 
 /**
