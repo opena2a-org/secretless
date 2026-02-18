@@ -101,6 +101,24 @@ describe('deepScan', () => {
     expect(result.message.content).toBe(input.message.content);
   });
 
+  it('redacts ALL occurrences of the same credential in a single string', () => {
+    const findings: TranscriptFinding[] = [];
+    const key = 'sk-ant-api03-abc123def456abc123def456abc123';
+    const input = {
+      toolUseResult: {
+        originalFile: `line1\napi_key = "${key}"\nline3\nbackup_key = "${key}"\nline5`,
+      },
+    };
+
+    const result = deepScan(input, '', findings, { file: 'test.jsonl', line: 1 }) as any;
+
+    expect(findings).toHaveLength(1);
+    expect(result.toolUseResult.originalFile).not.toContain('sk-ant-api03');
+    // Both occurrences should be redacted
+    const redactedCount = (result.toolUseResult.originalFile.match(/\[REDACTED:anthropic\]/g) || []).length;
+    expect(redactedCount).toBe(2);
+  });
+
   it('catches credential hidden after fake redaction marker', () => {
     const findings: TranscriptFinding[] = [];
     const input = {

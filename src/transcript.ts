@@ -149,7 +149,10 @@ function scanString(
   let result = value;
   for (const pattern of CREDENTIAL_PATTERNS) {
     if (pattern.regex.test(result)) {
-      const preview = result.replace(pattern.regex, `[REDACTED:${pattern.id}]`).substring(0, 80);
+      // Use global regex to replace ALL occurrences, not just the first
+      const flags = pattern.regex.flags.includes('g') ? pattern.regex.flags : pattern.regex.flags + 'g';
+      const globalRegex = new RegExp(pattern.regex.source, flags);
+      const preview = result.replace(globalRegex, `[REDACTED:${pattern.id}]`).substring(0, 80);
       findings.push({
         file: fileInfo.file,
         line: fileInfo.line,
@@ -158,7 +161,7 @@ function scanString(
         patternName: pattern.name,
         preview,
       });
-      result = result.replace(pattern.regex, `[REDACTED:${pattern.id}]`);
+      result = result.replace(globalRegex, `[REDACTED:${pattern.id}]`);
     }
   }
 
