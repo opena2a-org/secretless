@@ -210,6 +210,106 @@ describe('doctor', () => {
     // Should check bash profiles since platform is linux
     expect(result.profiles.some((p) => p.path.endsWith('.bashrc'))).toBe(true);
   });
+
+  // ── Windows tests ──────────────────────────────────────────────────────
+
+  it('detects Windows PowerShell profile with $env: syntax', () => {
+    const psDir = path.join(home, 'Documents', 'PowerShell');
+    fs.mkdirSync(psDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(psDir, 'Microsoft.PowerShell_profile.ps1'),
+      '$env:ANTHROPIC_API_KEY = "sk-ant-test-value"\n$env:OPENAI_API_KEY = "sk-proj-test-value"\n',
+    );
+
+    const result = doctor({
+      homeDir: home,
+      shell: '',
+      platform: 'win32',
+      envOverride: {},
+    });
+
+    expect(result.shell).toBe('powershell');
+    expect(result.platform).toBe('win32');
+
+    const psProfile = result.profiles.find((p) => p.path.includes('PowerShell'));
+    expect(psProfile).toBeDefined();
+    expect(psProfile!.exportedVars).toContain('ANTHROPIC_API_KEY');
+    expect(psProfile!.exportedVars).toContain('OPENAI_API_KEY');
+  });
+
+  it('reports error when Windows key is in PS profile but not in system env', () => {
+    const psDir = path.join(home, 'Documents', 'PowerShell');
+    fs.mkdirSync(psDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(psDir, 'Microsoft.PowerShell_profile.ps1'),
+      '$env:ANTHROPIC_API_KEY = "sk-ant-test-value"\n',
+    );
+
+    const result = doctor({
+      homeDir: home,
+      shell: '',
+      platform: 'win32',
+      envOverride: {},
+    });
+
+    expect(result.health).toBe('broken');
+    const errors = result.findings.filter((f) => f.severity === 'error');
+    expect(errors.some((f) => f.message.includes('ANTHROPIC_API_KEY') && f.message.includes('session-only'))).toBe(true);
+    expect(errors[0].fix).toContain('setx');
+  });
+
+  it('reports healthy when Windows key is in system env', () => {
+    const psDir = path.join(home, 'Documents', 'PowerShell');
+    fs.mkdirSync(psDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(psDir, 'Microsoft.PowerShell_profile.ps1'),
+      '$env:ANTHROPIC_API_KEY = "sk-ant-test-value"\n',
+    );
+
+    const result = doctor({
+      homeDir: home,
+      shell: '',
+      platform: 'win32',
+      envOverride: { ANTHROPIC_API_KEY: 'set' },
+    });
+
+    expect(result.health).toBe('healthy');
+    const infoFindings = result.findings.filter((f) => f.severity === 'info');
+    expect(infoFindings.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('ignores commented-out PowerShell exports', () => {
+    const psDir = path.join(home, 'Documents', 'PowerShell');
+    fs.mkdirSync(psDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(psDir, 'Microsoft.PowerShell_profile.ps1'),
+      '# $env:ANTHROPIC_API_KEY = "sk-ant-old-key"\n$env:OPENAI_API_KEY = "sk-proj-test"\n',
+    );
+
+    const result = doctor({
+      homeDir: home,
+      shell: '',
+      platform: 'win32',
+      envOverride: { OPENAI_API_KEY: 'set' },
+    });
+
+    const psProfile = result.profiles.find((p) => p.path.includes('PowerShell'));
+    expect(psProfile!.exportedVars).not.toContain('ANTHROPIC_API_KEY');
+    expect(psProfile!.exportedVars).toContain('OPENAI_API_KEY');
+  });
+
+  it('gives Windows-specific advice when no keys found', () => {
+    const result = doctor({
+      homeDir: home,
+      shell: '',
+      platform: 'win32',
+      envOverride: {},
+    });
+
+    expect(result.health).toBe('broken');
+    const errors = result.findings.filter((f) => f.severity === 'error');
+    expect(errors.some((f) => f.fix?.includes('setx') || f.fix?.includes('Environment Variables'))).toBe(true);
+  });
 });
 
 describe('quickDiagnosis', () => {
@@ -433,5 +533,172 @@ describe('fixProfiles', () => {
     // Source file should be untouched
     const afterContent = fs.readFileSync(path.join(home, '.zshrc'), 'utf-8');
     expect(afterContent).toBe(originalContent);
+  });
+
+  // ── Linux: insert before interactive guard ─────────────────────────────
+
+  it('inserts before bash interactive guard on Linux', () => {
+    // Simulate a typical Ubuntu .bashrc with interactive guard
+    const bashrc = [
+      '# ~/.bashrc: executed by bash(1) for non-login shells.',
+      '',
+      '# If not running interactively, don\'t do anything',
+      'case $- in',
+      '    *i*) ;;',
+      '      *) return;;',
+      'esac',
+      '',
+      '# some other stuff',
+      'alias ll="ls -la"',
+    ].join('\n');
+
+    fs.writeFileSync(path.join(home, '.bashrc'), bashrc);
+    fs.writeFileSync(
+      path.join(home, '.bash_profile'),
+      'export ANTHROPIC_API_KEY="sk-ant-test123"\n',
+    );
+
+    const result = fixProfiles({
+      homeDir: home,
+      shell: '/bin/bash',
+      platform: 'linux',
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.fixed).toContain('ANTHROPIC_API_KEY');
+
+    // Verify the export was inserted BEFORE the interactive guard
+    const fixed = fs.readFileSync(path.join(home, '.bashrc'), 'utf-8');
+    const exportIdx = fixed.indexOf('export ANTHROPIC_API_KEY=');
+    const guardIdx = fixed.indexOf('case $- in');
+    expect(exportIdx).toBeLessThan(guardIdx);
+    expect(exportIdx).toBeGreaterThan(-1);
+  });
+
+  it('appends to .bashrc when no interactive guard exists', () => {
+    // Simple .bashrc without guard
+    const bashrc = '# simple bashrc\nalias ll="ls -la"\n';
+    fs.writeFileSync(path.join(home, '.bashrc'), bashrc);
+    fs.writeFileSync(
+      path.join(home, '.bash_profile'),
+      'export OPENAI_API_KEY="sk-proj-test456"\n',
+    );
+
+    const result = fixProfiles({
+      homeDir: home,
+      shell: '/bin/bash',
+      platform: 'linux',
+    });
+
+    expect(result).not.toBeNull();
+    const fixed = fs.readFileSync(path.join(home, '.bashrc'), 'utf-8');
+    // Should be appended since no guard
+    expect(fixed).toContain('export OPENAI_API_KEY="sk-proj-test456"');
+    expect(fixed.startsWith('# simple bashrc')).toBe(true);
+  });
+
+  it('handles [ -z "$PS1" ] guard variant', () => {
+    const bashrc = '# bashrc\n[ -z "$PS1" ] && return\nalias ll="ls -la"\n';
+    fs.writeFileSync(path.join(home, '.bashrc'), bashrc);
+    fs.writeFileSync(
+      path.join(home, '.bash_profile'),
+      'export AWS_ACCESS_KEY_ID="AKIATEST1234567890AB"\n',
+    );
+
+    const result = fixProfiles({
+      homeDir: home,
+      shell: '/bin/bash',
+      platform: 'linux',
+    });
+
+    expect(result).not.toBeNull();
+    const fixed = fs.readFileSync(path.join(home, '.bashrc'), 'utf-8');
+    const exportIdx = fixed.indexOf('export AWS_ACCESS_KEY_ID=');
+    const guardIdx = fixed.indexOf('[ -z "$PS1" ]');
+    expect(exportIdx).toBeLessThan(guardIdx);
+  });
+
+  // ── Windows: setx fix ─────────────────────────────────────────────────
+
+  it('generates setx commands for Windows fix (dry run)', () => {
+    const psDir = path.join(home, 'Documents', 'PowerShell');
+    fs.mkdirSync(psDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(psDir, 'Microsoft.PowerShell_profile.ps1'),
+      '$env:ANTHROPIC_API_KEY = "sk-ant-test-value"\n$env:OPENAI_API_KEY = "sk-proj-test-value"\n',
+    );
+
+    const result = fixProfiles({
+      homeDir: home,
+      shell: '',
+      platform: 'win32',
+      envOverride: {},
+      dryRun: true,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.fixed).toContain('ANTHROPIC_API_KEY');
+    expect(result!.fixed).toContain('OPENAI_API_KEY');
+    expect(result!.targetProfile).toContain('setx');
+    expect(result!.commands).toBeDefined();
+    expect(result!.commands!.length).toBe(2);
+    expect(result!.commands![0]).toContain('setx ANTHROPIC_API_KEY');
+    expect(result!.commands![1]).toContain('setx OPENAI_API_KEY');
+  });
+
+  it('skips Windows vars already in system env', () => {
+    const psDir = path.join(home, 'Documents', 'PowerShell');
+    fs.mkdirSync(psDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(psDir, 'Microsoft.PowerShell_profile.ps1'),
+      '$env:ANTHROPIC_API_KEY = "sk-ant-test-value"\n$env:OPENAI_API_KEY = "sk-proj-test-value"\n',
+    );
+
+    const result = fixProfiles({
+      homeDir: home,
+      shell: '',
+      platform: 'win32',
+      envOverride: { ANTHROPIC_API_KEY: 'already-set' },
+      dryRun: true,
+    });
+
+    expect(result).not.toBeNull();
+    // ANTHROPIC already in env, should not be in commands
+    expect(result!.fixed).not.toContain('ANTHROPIC_API_KEY');
+    expect(result!.fixed).toContain('OPENAI_API_KEY');
+    expect(result!.commands!.length).toBe(1);
+  });
+
+  it('returns null on Windows when no PS profiles exist', () => {
+    const result = fixProfiles({
+      homeDir: home,
+      shell: '',
+      platform: 'win32',
+      envOverride: {},
+      dryRun: true,
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it('handles single-quoted PS values', () => {
+    const psDir = path.join(home, 'Documents', 'PowerShell');
+    fs.mkdirSync(psDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(psDir, 'Microsoft.PowerShell_profile.ps1'),
+      "$env:GITHUB_TOKEN = 'ghp_abcdef1234567890abcdef1234567890abcd'\n",
+    );
+
+    const result = fixProfiles({
+      homeDir: home,
+      shell: '',
+      platform: 'win32',
+      envOverride: {},
+      dryRun: true,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.fixed).toContain('GITHUB_TOKEN');
+    expect(result!.commands![0]).toContain('ghp_abcdef1234567890abcdef1234567890abcd');
   });
 });

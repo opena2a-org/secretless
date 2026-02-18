@@ -153,16 +153,25 @@ Non-interactive subprocesses (Claude Code's Bash tool, CI/CD, Docker) don't sour
 | Linux | bash | `~/.bashrc` | Sourced by interactive bash; most tools source it explicitly |
 | Windows | — | System Environment Variables | Use `setx` or Settings > System > Environment Variables |
 
-**Common mistake:** Adding `export` lines to `~/.zshrc` on macOS. This file is only sourced by interactive shells, so your API keys work in the terminal but fail when Claude Code, Docker, or CI runs a subprocess. Secretless detects this automatically during `init` and copies the export lines to the correct profile.
+**Common mistakes Secretless auto-fixes:**
+- **macOS:** Adding `export` lines to `~/.zshrc` instead of `~/.zshenv`. Secretless copies them to the correct file during `init`.
+- **Linux:** Adding exports to `~/.bash_profile` instead of `~/.bashrc`, or placing them after the interactive guard in `.bashrc`. Secretless inserts them before the guard.
+- **Windows:** Setting keys only in PowerShell `$PROFILE` (session-only). Secretless runs `setx` to set persistent user environment variables.
 
 ```bash
 # macOS (zsh) — add to ~/.zshenv
 export ANTHROPIC_API_KEY="sk-ant-..."
 export OPENAI_API_KEY="sk-proj-..."
 
-# Linux (bash) — add to ~/.bashrc
+# Linux (bash) — add to ~/.bashrc (before the interactive guard)
 export ANTHROPIC_API_KEY="sk-ant-..."
 export OPENAI_API_KEY="sk-proj-..."
+```
+
+```powershell
+# Windows — use setx (or Settings > System > Environment Variables)
+setx ANTHROPIC_API_KEY "sk-ant-..."
+setx OPENAI_API_KEY "sk-proj-..."
 ```
 
 **Step 2: Remove keys from AI config files**
