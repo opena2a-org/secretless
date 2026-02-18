@@ -153,7 +153,7 @@ Non-interactive subprocesses (Claude Code's Bash tool, CI/CD, Docker) don't sour
 | Linux | bash | `~/.bashrc` | Sourced by interactive bash; most tools source it explicitly |
 | Windows | — | System Environment Variables | Use `setx` or Settings > System > Environment Variables |
 
-**Common mistake:** Adding `export` lines to `~/.zshrc` on macOS. This file is only sourced by interactive shells, so your API keys work in the terminal but fail when Claude Code, Docker, or CI runs a subprocess. Run `npx secretless-ai doctor` to detect this.
+**Common mistake:** Adding `export` lines to `~/.zshrc` on macOS. This file is only sourced by interactive shells, so your API keys work in the terminal but fail when Claude Code, Docker, or CI runs a subprocess. Secretless detects this automatically during `init` and copies the export lines to the correct profile.
 
 ```bash
 # macOS (zsh) — add to ~/.zshenv
@@ -231,6 +231,15 @@ Confirms keys are usable but hidden from AI. Checks that env vars are set AND th
 
 Diagnoses shell profile issues that cause "No API keys found" errors. Detects when keys are in an interactive-only profile (like `~/.zshrc`) that non-interactive subprocesses can't see.
 
+Use `--fix` to auto-fix: copies export lines from the wrong profile to the correct one (non-destructive, does not modify the original file).
+
+```bash
+npx secretless-ai doctor         # Diagnose
+npx secretless-ai doctor --fix   # Diagnose and auto-fix
+```
+
+Note: `init` also runs this auto-fix automatically, so most users never need to run `doctor` separately.
+
 ```
   Secretless Doctor
 
@@ -242,13 +251,11 @@ Diagnoses shell profile issues that cause "No API keys found" errors. Detects wh
     + ~/.zshrc (interactive-only): 2 key(s)
     - ~/.zprofile (login-only): not found
 
-  Findings:
-    [ERROR] ANTHROPIC_API_KEY is in ~/.zshrc (interactive-only) but not available in subprocesses
-           Fix: Move the export line from ~/.zshrc to ~/.zshenv
-    [ERROR] OPENAI_API_KEY is in ~/.zshrc (interactive-only) but not available in subprocesses
-           Fix: Move the export line from ~/.zshrc to ~/.zshenv
-
-  BROKEN: Keys are not available to subprocesses.
+  Auto-fix applied:
+    Copied 2 export(s) from ~/.zshrc to ~/.zshenv
+      + ANTHROPIC_API_KEY
+      + OPENAI_API_KEY
+    Restart your terminal for changes to take effect.
 ```
 
 ### `npx secretless-ai protect-mcp`

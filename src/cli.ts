@@ -21,7 +21,7 @@ import { verify } from './verify';
 import { toolDisplayName } from './detect';
 import { cleanTranscripts } from './transcript';
 import { startWatch, stopWatch, isWatchRunning, installLaunchAgent, uninstallLaunchAgent } from './watch';
-import { doctor, quickDiagnosis } from './doctor';
+import { doctor, quickDiagnosis, fixProfiles } from './doctor';
 import { protectMcp } from './mcp/protect';
 import { discoverMcpConfigs } from './mcp/discover';
 import { classifyEnvVars } from './mcp/classify';
@@ -60,7 +60,7 @@ function main(): void {
       break;
     }
     case 'doctor':
-      runDoctor();
+      runDoctor(args.includes('--fix'));
       break;
     case 'clean':
       runClean(args.slice(1));
@@ -138,6 +138,20 @@ function runInit(projectDir: string): void {
   if (result.secretsFound > 0) {
     console.log(`  Warning: found ${result.secretsFound} hardcoded credential(s)`);
     console.log('  Run `npx secretless-ai scan` to see details\n');
+  }
+
+  // Auto-fix shell profile issues
+  const fix = fixProfiles();
+  if (fix) {
+    console.log('  Shell profile fix:');
+    console.log(`    Copied ${fix.fixed.length} export(s) from ~/${fix.sourceProfile} to ~/${fix.targetProfile}`);
+    for (const v of fix.fixed) {
+      console.log(`      + ${v}`);
+    }
+    if (fix.created) {
+      console.log(`    Created ~/${fix.targetProfile}`);
+    }
+    console.log('    Restart your terminal for changes to take effect.\n');
   }
 
   console.log('  Done. Secrets are now blocked from AI context.\n');
@@ -266,7 +280,7 @@ function runVerify(projectDir: string): void {
   }
 }
 
-function runDoctor(): void {
+function runDoctor(autoFix: boolean): void {
   console.log('\n  Secretless Doctor\n');
 
   const result = doctor();
@@ -299,7 +313,6 @@ function runDoctor(): void {
   if (result.findings.length > 0) {
     console.log('  Findings:');
     for (const finding of result.findings) {
-      const icon = finding.severity === 'error' ? '!' : finding.severity === 'warn' ? '~' : '*';
       const label = finding.severity.toUpperCase();
       console.log(`    [${label}] ${finding.message}`);
       if (finding.fix) {
@@ -307,6 +320,23 @@ function runDoctor(): void {
       }
     }
     console.log();
+  }
+
+  // Auto-fix if requested or if there are fixable issues
+  if (autoFix && result.health !== 'healthy') {
+    const fix = fixProfiles();
+    if (fix) {
+      console.log('  Auto-fix applied:');
+      console.log(`    Copied ${fix.fixed.length} export(s) from ~/${fix.sourceProfile} to ~/${fix.targetProfile}`);
+      for (const v of fix.fixed) {
+        console.log(`      + ${v}`);
+      }
+      if (fix.created) {
+        console.log(`    Created ~/${fix.targetProfile}`);
+      }
+      console.log('    Restart your terminal for changes to take effect.\n');
+      return;
+    }
   }
 
   // Health verdict
@@ -318,6 +348,7 @@ function runDoctor(): void {
   console.log(`  ${verdictMap[result.health]}\n`);
 
   if (result.health !== 'healthy') {
+    console.log('  Run `npx secretless-ai doctor --fix` to auto-fix.\n');
     process.exit(1);
   }
 }
@@ -543,7 +574,7 @@ function printHelp(): void {
     npx secretless-ai scan      Scan for hardcoded secrets
     npx secretless-ai status    Show protection status
     npx secretless-ai verify    Verify keys are usable but hidden from AI
-    npx secretless-ai doctor    Diagnose shell profile issues
+    npx secretless-ai doctor    Diagnose shell profile issues (--fix to auto-fix)
     npx secretless-ai clean     Scan and redact credentials in transcripts
     npx secretless-ai watch     Monitor transcripts in real-time
 

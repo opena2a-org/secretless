@@ -4,8 +4,8 @@
  * Diagnoses why API keys set in shell profiles (e.g. .zshrc) aren't available
  * in non-interactive subprocesses like Claude Code's Bash tool, CI/CD, or Docker.
  *
- * Security: NEVER reads or stores actual key values. Only detects
- * `export VAR_NAME=` presence in shell profiles.
+ * Security: Only reads shell profiles to detect and relocate `export VAR=`
+ * lines. Never stores key values in its own files or state.
  */
 
 import * as fs from 'fs';
@@ -55,6 +55,17 @@ export interface QuickDiagnosisResult {
   wrongProfile: string[];
   /** Env var names not found in any profile */
   missingEverywhere: string[];
+}
+
+export interface FixResult {
+  /** Env var names that were copied to the correct profile */
+  fixed: string[];
+  /** Source profile the export lines were copied from */
+  sourceProfile: string;
+  /** Destination profile the export lines were copied to */
+  targetProfile: string;
+  /** Whether the target profile was created (vs appended to) */
+  created: boolean;
 }
 
 // ── Shell profile knowledge ──────────────────────────────────────────────────
@@ -114,6 +125,39 @@ function scanProfile(filePath: string, knownVars: string[]): string[] {
   return found;
 }
 
+/** Extract full export lines (verbatim) for specific var names from a profile */
+function extractExportLines(filePath: string, varNames: string[]): Map<string, string> {
+  const result = new Map<string, string>();
+  if (!fs.existsSync(filePath)) return result;
+
+  let content: string;
+  try {
+    content = fs.readFileSync(filePath, 'utf-8');
+  } catch {
+    return result;
+  }
+
+  for (const line of content.split('\n')) {
+    if (COMMENT_RE.test(line)) continue;
+    const match = EXPORT_LINE_RE.exec(line);
+    if (match && varNames.includes(match[1])) {
+      result.set(match[1], line);
+    }
+  }
+  return result;
+}
+
+/** Resolve which profile specs to use for the given shell/platform */
+function resolveProfileSpecs(shell: string, platform: string): ProfileSpec[] {
+  const shellName = path.basename(shell);
+  if (shellName === 'zsh' || shell.endsWith('/zsh')) {
+    return ZSH_PROFILES;
+  } else if (shellName === 'bash' || shell.endsWith('/bash')) {
+    return BASH_PROFILES;
+  }
+  return platform === 'darwin' ? ZSH_PROFILES : BASH_PROFILES;
+}
+
 // ── Main doctor function ─────────────────────────────────────────────────────
 
 export function doctor(options?: DoctorOptions): DoctorResult {
@@ -125,15 +169,7 @@ export function doctor(options?: DoctorOptions): DoctorResult {
 
   // Pick profile specs based on shell
   const shellName = path.basename(shell);
-  let specs: ProfileSpec[];
-  if (shellName === 'zsh' || shell.endsWith('/zsh')) {
-    specs = ZSH_PROFILES;
-  } else if (shellName === 'bash' || shell.endsWith('/bash')) {
-    specs = BASH_PROFILES;
-  } else {
-    // Default to zsh on macOS, bash elsewhere
-    specs = platform === 'darwin' ? ZSH_PROFILES : BASH_PROFILES;
-  }
+  const specs = resolveProfileSpecs(shell, platform);
 
   // Scan each profile
   const profiles: ProfileInfo[] = specs.map((spec) => {
@@ -283,4 +319,66 @@ export function quickDiagnosis(options?: DoctorOptions): QuickDiagnosisResult {
   const missingEverywhere = knownVars.filter((v) => !allFound.has(v) && !env[v]);
 
   return { wrongProfile, missingEverywhere };
+}
+
+// ── Auto-fix: copy exports to the correct profile ────────────────────────────
+
+/**
+ * Detects export lines in wrong shell profiles and copies them to the
+ * correct profile automatically. Non-destructive: does not remove lines
+ * from the original profile.
+ *
+ * Returns null if nothing needs fixing.
+ */
+export function fixProfiles(options?: DoctorOptions): FixResult | null {
+  const home = options?.homeDir ?? os.homedir();
+  const shell = options?.shell ?? process.env.SHELL ?? '';
+  const platform = options?.platform ?? os.platform();
+  const knownVars = getKnownEnvVarNames();
+  const specs = resolveProfileSpecs(shell, platform);
+
+  const recommendedSpec = specs.find((s) => s.recommendation === 'recommended');
+  if (!recommendedSpec) return null;
+
+  const targetPath = path.join(home, recommendedSpec.file);
+  const targetVars = scanProfile(targetPath, knownVars);
+  const targetVarSet = new Set(targetVars);
+
+  // Find vars in non-recommended profiles that are NOT already in the recommended profile
+  const varsToFix: string[] = [];
+  const sourceLines = new Map<string, string>();
+  let primarySource = '';
+
+  for (const spec of specs) {
+    if (spec.file === recommendedSpec.file) continue;
+    const sourcePath = path.join(home, spec.file);
+    const lines = extractExportLines(sourcePath, knownVars);
+
+    for (const [varName, line] of lines) {
+      if (!targetVarSet.has(varName) && !sourceLines.has(varName)) {
+        varsToFix.push(varName);
+        sourceLines.set(varName, line);
+        if (!primarySource) primarySource = spec.file;
+      }
+    }
+  }
+
+  if (varsToFix.length === 0) return null;
+
+  // Build the block to append
+  const linesToAppend = varsToFix.map((v) => sourceLines.get(v)!);
+  const block = '\n# Added by secretless-ai (moved from wrong shell profile)\n'
+    + linesToAppend.join('\n') + '\n';
+
+  // Append to target profile (create if needed)
+  const created = !fs.existsSync(targetPath);
+  const existing = created ? '' : fs.readFileSync(targetPath, 'utf-8');
+  fs.writeFileSync(targetPath, existing + block);
+
+  return {
+    fixed: varsToFix,
+    sourceProfile: primarySource,
+    targetProfile: recommendedSpec.file,
+    created,
+  };
 }

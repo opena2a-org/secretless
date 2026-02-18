@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { doctor, quickDiagnosis } from './doctor';
+import { doctor, quickDiagnosis, fixProfiles } from './doctor';
 
 function tmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'secretless-ai-doctor-'));
@@ -284,5 +284,154 @@ describe('quickDiagnosis', () => {
 
     // .bash_profile is login-only, key not in env
     expect(result.wrongProfile).toContain('GITHUB_TOKEN');
+  });
+});
+
+describe('fixProfiles', () => {
+  let home: string;
+
+  beforeEach(() => {
+    home = tmpDir();
+  });
+
+  afterEach(() => {
+    cleanup(home);
+  });
+
+  it('copies exports from .zshrc to .zshenv', () => {
+    fs.writeFileSync(
+      path.join(home, '.zshrc'),
+      '# my config\nexport ANTHROPIC_API_KEY="sk-ant-test123"\nexport OPENAI_API_KEY="sk-proj-test456"\naliases...\n',
+    );
+
+    const result = fixProfiles({
+      homeDir: home,
+      shell: '/bin/zsh',
+      platform: 'darwin',
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.fixed).toContain('ANTHROPIC_API_KEY');
+    expect(result!.fixed).toContain('OPENAI_API_KEY');
+    expect(result!.sourceProfile).toBe('.zshrc');
+    expect(result!.targetProfile).toBe('.zshenv');
+    expect(result!.created).toBe(true);
+
+    // Verify .zshenv was created with the export lines
+    const zshenv = fs.readFileSync(path.join(home, '.zshenv'), 'utf-8');
+    expect(zshenv).toContain('export ANTHROPIC_API_KEY="sk-ant-test123"');
+    expect(zshenv).toContain('export OPENAI_API_KEY="sk-proj-test456"');
+    expect(zshenv).toContain('# Added by secretless-ai');
+  });
+
+  it('appends to existing .zshenv without overwriting', () => {
+    fs.writeFileSync(
+      path.join(home, '.zshenv'),
+      '# existing content\nexport PATH="/usr/local/bin:$PATH"\n',
+    );
+    fs.writeFileSync(
+      path.join(home, '.zshrc'),
+      'export ANTHROPIC_API_KEY="sk-ant-test123"\n',
+    );
+
+    const result = fixProfiles({
+      homeDir: home,
+      shell: '/bin/zsh',
+      platform: 'darwin',
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.created).toBe(false);
+
+    const zshenv = fs.readFileSync(path.join(home, '.zshenv'), 'utf-8');
+    // Original content preserved
+    expect(zshenv).toContain('export PATH="/usr/local/bin:$PATH"');
+    // New export added
+    expect(zshenv).toContain('export ANTHROPIC_API_KEY="sk-ant-test123"');
+  });
+
+  it('returns null when nothing needs fixing', () => {
+    // Key already in the correct profile
+    fs.writeFileSync(
+      path.join(home, '.zshenv'),
+      'export ANTHROPIC_API_KEY="sk-ant-test123"\n',
+    );
+
+    const result = fixProfiles({
+      homeDir: home,
+      shell: '/bin/zsh',
+      platform: 'darwin',
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it('skips vars already in .zshenv', () => {
+    fs.writeFileSync(
+      path.join(home, '.zshenv'),
+      'export ANTHROPIC_API_KEY="sk-ant-already-here"\n',
+    );
+    fs.writeFileSync(
+      path.join(home, '.zshrc'),
+      'export ANTHROPIC_API_KEY="sk-ant-also-here"\nexport OPENAI_API_KEY="sk-proj-only-here"\n',
+    );
+
+    const result = fixProfiles({
+      homeDir: home,
+      shell: '/bin/zsh',
+      platform: 'darwin',
+    });
+
+    expect(result).not.toBeNull();
+    // ANTHROPIC already in .zshenv, should not be copied again
+    expect(result!.fixed).not.toContain('ANTHROPIC_API_KEY');
+    // OPENAI only in .zshrc, should be copied
+    expect(result!.fixed).toContain('OPENAI_API_KEY');
+  });
+
+  it('copies exports from .bash_profile to .bashrc on Linux', () => {
+    fs.writeFileSync(
+      path.join(home, '.bash_profile'),
+      'export GITHUB_TOKEN="ghp_abcdef1234567890abcdef1234567890abcd"\n',
+    );
+
+    const result = fixProfiles({
+      homeDir: home,
+      shell: '/bin/bash',
+      platform: 'linux',
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.fixed).toContain('GITHUB_TOKEN');
+    expect(result!.sourceProfile).toBe('.bash_profile');
+    expect(result!.targetProfile).toBe('.bashrc');
+
+    const bashrc = fs.readFileSync(path.join(home, '.bashrc'), 'utf-8');
+    expect(bashrc).toContain('export GITHUB_TOKEN=');
+  });
+
+  it('returns null when no profiles exist', () => {
+    const result = fixProfiles({
+      homeDir: home,
+      shell: '/bin/zsh',
+      platform: 'darwin',
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it('does not modify the source profile', () => {
+    const originalContent = '# my zshrc\nexport ANTHROPIC_API_KEY="sk-ant-test123"\nsome other stuff\n';
+    fs.writeFileSync(path.join(home, '.zshrc'), originalContent);
+
+    fixProfiles({
+      homeDir: home,
+      shell: '/bin/zsh',
+      platform: 'darwin',
+    });
+
+    // Source file should be untouched
+    const afterContent = fs.readFileSync(path.join(home, '.zshrc'), 'utf-8');
+    expect(afterContent).toBe(originalContent);
   });
 });
