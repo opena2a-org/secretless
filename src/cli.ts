@@ -8,6 +8,7 @@
  *   npx secretless-ai scan     — Scan for hardcoded secrets
  *   npx secretless-ai status   — Show current protection status
  *   npx secretless-ai verify   — Verify keys are usable but hidden from AI
+ *   npx secretless-ai doctor   — Diagnose shell profile issues
  *   npx secretless-ai clean    — Scan and redact credentials in transcripts
  *   npx secretless-ai watch    — Monitor transcripts in real-time
  */
@@ -20,6 +21,7 @@ import { verify } from './verify';
 import { toolDisplayName } from './detect';
 import { cleanTranscripts } from './transcript';
 import { startWatch, stopWatch, isWatchRunning, installLaunchAgent, uninstallLaunchAgent } from './watch';
+import { doctor, quickDiagnosis } from './doctor';
 import { protectMcp } from './mcp/protect';
 import { discoverMcpConfigs } from './mcp/discover';
 import { classifyEnvVars } from './mcp/classify';
@@ -57,6 +59,9 @@ function main(): void {
       runVerify(projectDir);
       break;
     }
+    case 'doctor':
+      runDoctor();
+      break;
     case 'clean':
       runClean(args.slice(1));
       break;
@@ -243,7 +248,76 @@ function runVerify(projectDir: string): void {
     process.exit(1);
   } else {
     console.log('  WARN: No API keys found in env vars.');
-    console.log('  Set keys in ~/.zshenv or ~/.bashrc, then restart your terminal.\n');
+
+    // Quick diagnosis to give targeted advice
+    const diag = quickDiagnosis();
+    if (diag.wrongProfile.length > 0) {
+      console.log(`  Found ${diag.wrongProfile.length} key(s) in an interactive-only shell profile:`);
+      for (const v of diag.wrongProfile) {
+        console.log(`    - ${v}`);
+      }
+      console.log('  These work in your terminal but fail in subprocesses (CI, Docker, Claude Code).');
+      console.log('  Run `npx secretless-ai doctor` for fix instructions.\n');
+    } else {
+      console.log('  Set keys in ~/.zshenv (macOS) or ~/.bashrc (Linux), then restart your terminal.');
+      console.log('  Run `npx secretless-ai doctor` to diagnose shell profile issues.\n');
+    }
+    process.exit(1);
+  }
+}
+
+function runDoctor(): void {
+  console.log('\n  Secretless Doctor\n');
+
+  const result = doctor();
+
+  // Platform & shell
+  console.log(`  Platform: ${result.platform}`);
+  console.log(`  Shell:    ${result.shell}`);
+  console.log();
+
+  // Profiles
+  console.log('  Shell profiles:');
+  for (const profile of result.profiles) {
+    const tag = profile.recommendation === 'recommended'
+      ? ' (RECOMMENDED)'
+      : profile.recommendation === 'interactive-only'
+        ? ' (interactive-only)'
+        : profile.recommendation === 'login-only'
+          ? ' (login-only)'
+          : '';
+    const status = profile.exists
+      ? (profile.exportedVars.length > 0
+          ? `${profile.exportedVars.length} key(s)`
+          : 'no keys')
+      : 'not found';
+    console.log(`    ${profile.exists ? '+' : '-'} ~/${require('path').basename(profile.path)}${tag}: ${status}`);
+  }
+  console.log();
+
+  // Findings
+  if (result.findings.length > 0) {
+    console.log('  Findings:');
+    for (const finding of result.findings) {
+      const icon = finding.severity === 'error' ? '!' : finding.severity === 'warn' ? '~' : '*';
+      const label = finding.severity.toUpperCase();
+      console.log(`    [${label}] ${finding.message}`);
+      if (finding.fix) {
+        console.log(`           Fix: ${finding.fix}`);
+      }
+    }
+    console.log();
+  }
+
+  // Health verdict
+  const verdictMap = {
+    healthy: 'HEALTHY: All keys correctly configured for subprocess access.',
+    degraded: 'DEGRADED: Keys work in your terminal but may fail in subprocesses.',
+    broken: 'BROKEN: Keys are not available to subprocesses.',
+  };
+  console.log(`  ${verdictMap[result.health]}\n`);
+
+  if (result.health !== 'healthy') {
     process.exit(1);
   }
 }
@@ -469,6 +543,7 @@ function printHelp(): void {
     npx secretless-ai scan      Scan for hardcoded secrets
     npx secretless-ai status    Show protection status
     npx secretless-ai verify    Verify keys are usable but hidden from AI
+    npx secretless-ai doctor    Diagnose shell profile issues
     npx secretless-ai clean     Scan and redact credentials in transcripts
     npx secretless-ai watch     Monitor transcripts in real-time
 

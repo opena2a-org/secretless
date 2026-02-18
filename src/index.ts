@@ -6,6 +6,7 @@ export { detectAITools, toolDisplayName, type AITool } from './detect';
 export { CREDENTIAL_PATTERNS, SECRET_FILE_PATTERNS, CONFIG_FILES, CREDENTIAL_PREFIX_QUICK_CHECK, type CredentialPattern } from './patterns';
 export { cleanTranscripts, discoverTranscripts, type CleanResult, type CleanOptions, type TranscriptFinding } from './transcript';
 export { startWatch, stopWatch, isWatchRunning } from './watch';
+export { doctor, quickDiagnosis, type DoctorOptions, type DoctorResult, type DoctorFinding, type QuickDiagnosisResult, type ProfileInfo, type Severity, type HealthStatus } from './doctor';
 
 // MCP protection
 export {

@@ -143,10 +143,24 @@ Output:
 
 The safest setup: keys live in environment variables, AI tools reference them by name.
 
-**Step 1: Move keys to your shell profile**
+**Step 1: Move keys to the correct shell profile**
+
+Non-interactive subprocesses (Claude Code's Bash tool, CI/CD, Docker) don't source interactive-only profiles. Use the right file for your platform:
+
+| Platform | Shell | Correct File | Why |
+|----------|-------|-------------|-----|
+| macOS | zsh | `~/.zshenv` | Sourced by ALL shells (interactive + non-interactive) |
+| Linux | bash | `~/.bashrc` | Sourced by interactive bash; most tools source it explicitly |
+| Windows | — | System Environment Variables | Use `setx` or Settings > System > Environment Variables |
+
+**Common mistake:** Adding `export` lines to `~/.zshrc` on macOS. This file is only sourced by interactive shells, so your API keys work in the terminal but fail when Claude Code, Docker, or CI runs a subprocess. Run `npx secretless-ai doctor` to detect this.
 
 ```bash
-# Add to ~/.zshenv (or ~/.bashrc)
+# macOS (zsh) — add to ~/.zshenv
+export ANTHROPIC_API_KEY="sk-ant-..."
+export OPENAI_API_KEY="sk-proj-..."
+
+# Linux (bash) — add to ~/.bashrc
 export ANTHROPIC_API_KEY="sk-ant-..."
 export OPENAI_API_KEY="sk-proj-..."
 ```
@@ -211,6 +225,30 @@ Confirms keys are usable but hidden from AI. Checks that env vars are set AND th
 
 ```
   PASS: Secrets are accessible via env vars but hidden from AI context.
+```
+
+### `npx secretless-ai doctor`
+
+Diagnoses shell profile issues that cause "No API keys found" errors. Detects when keys are in an interactive-only profile (like `~/.zshrc`) that non-interactive subprocesses can't see.
+
+```
+  Secretless Doctor
+
+  Platform: darwin
+  Shell:    zsh
+
+  Shell profiles:
+    - ~/.zshenv (RECOMMENDED): not found
+    + ~/.zshrc (interactive-only): 2 key(s)
+    - ~/.zprofile (login-only): not found
+
+  Findings:
+    [ERROR] ANTHROPIC_API_KEY is in ~/.zshrc (interactive-only) but not available in subprocesses
+           Fix: Move the export line from ~/.zshrc to ~/.zshenv
+    [ERROR] OPENAI_API_KEY is in ~/.zshrc (interactive-only) but not available in subprocesses
+           Fix: Move the export line from ~/.zshrc to ~/.zshenv
+
+  BROKEN: Keys are not available to subprocesses.
 ```
 
 ### `npx secretless-ai protect-mcp`
